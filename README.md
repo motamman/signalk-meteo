@@ -69,40 +69,45 @@ The plugin publishes weather data to the following SignalK paths:
 ### Daily Forecasts
 - `environment.outside.meteo.forecast.daily.{parameter}.{N}`: Individual parameters for each day (N = 0 to maxDays-1)
 
-### Available Parameters
+### Available Parameters by Package
 
-#### Hourly Forecast Data
-- `timestamp`: ISO 8601 timestamp
-- `relativeHour`: Hours relative to current time (e.g., +6 for 6 hours from now)
-- `temperature`: Air temperature (Kelvin)
-- `windSpeed`: Wind speed (m/s)
-- `windDirection`: Wind direction (radians)
-- `precipitation`: Precipitation amount (meters)
-- `weatherCode`: Meteoblue weather code
-- `pressure`: Sea level pressure (Pascals)
-- `relativeHumidity`: Relative humidity (ratio 0-1)
-- `visibility`: Visibility (meters)
-- `cloudCover`: Cloud cover (ratio 0-1)
-- `uvIndex`: UV index
-- `feltTemperature`: Apparent/feels-like temperature (Kelvin)
-- `precipitationProbability`: Probability of precipitation (ratio 0-1)
+**Note**: Each package provides different parameters. The specific fields available depend on which Meteoblue packages are enabled.
 
-#### Daily Forecast Data
-- `date`: Date string
-- `dayOfWeek`: Day of the week name
-- `temperatureMax/Min`: Maximum/minimum temperatures (Kelvin)
-- `windSpeedMax`: Maximum wind speed (m/s)
-- `windDirection`: Dominant wind direction (radians)
-- `precipitation`: Total precipitation (meters)
-- `weatherCode`: Meteoblue weather code
-- `pressureMean`: Mean pressure (Pascals)
-- `relativeHumidityMean`: Mean humidity (ratio 0-1)
-- `visibilityMean`: Mean visibility (meters)
-- `cloudCoverMean`: Mean cloud cover (ratio 0-1)
-- `uvIndexMax`: Maximum UV index
-- `precipitationProbability`: Probability of precipitation (ratio 0-1)
-- `sunshineDuration`: Sunshine duration (seconds)
-- `feltTemperatureMax/Min`: Maximum/minimum apparent temperatures (Kelvin)
+#### Common Parameters (all forecasts include):
+- `timestamp`: ISO 8601 timestamp  
+- `relativeHour`: Hours relative to current time (hourly only)
+- `date`: Date string (daily only)
+- `dayOfWeek`: Day of the week name (daily only)
+
+#### Basic Package Parameters:
+- `temperature`, `felttemperature`: Temperature data (Kelvin)
+- `windspeed`, `winddirection`: Basic wind data (m/s, radians)
+- `precipitation`, `precipitation_probability`: Precipitation data (meters, ratio 0-1)
+- `pictocode`: Meteoblue weather codes
+- `relativehumidity`: Humidity (ratio 0-1)
+- `sealevelpressure`, `surfaceairpressure`: Pressure data (Pascals)
+- `uvindex`: UV index values
+
+#### Sea Package Parameters:
+- `seasurfacetemperature`: Sea surface temperature (Kelvin)
+- `significantwaveheight`, `surfwave_height`, `windwave_height`: Wave heights (meters)
+- `swell_significantheight`: Swell wave height (meters)
+- `mean_waveperiod`, `windwave_meanperiod`, `swell_meanperiod`: Wave periods (seconds)
+- `mean_wavedirection`, `windwave_direction`, `swell_meandirection`: Wave directions (radians)
+- `douglas_seastate`: Douglas sea state scale
+- `currentvelocity_u`, `currentvelocity_v`: Ocean current components (m/s)
+- `salinity`: Water salinity
+
+#### Wind Package Parameters:
+- `windspeed`, `winddirection`: Wind data (m/s, radians)  
+- `gust`: Wind gusts (m/s)
+- `windspeed_80m`, `winddirection_80m`: High-altitude wind data (m/s, radians)
+- `airdensity`: Air density (kg/m³)
+- `surfaceairpressure`, `sealevelpressure`: Pressure data (Pascals)
+
+#### Solar Package Parameters:
+- `uvindex`: UV index
+- `sunshine_duration`: Daily sunshine duration (seconds)
 
 ## Position-based Updates
 
