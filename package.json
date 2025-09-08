@@ -4,7 +4,7 @@
   "description": "SignalK plugin for position-based weather forecast data from Meteoblue API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "appicon": "zennora.png",
+  "appicon": "meteo.png",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
