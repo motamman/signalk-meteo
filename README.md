@@ -5,6 +5,7 @@ A SignalK plugin that provides position-based weather forecast data using the Me
 ## Features
 
 - **Position-based forecasts**: Automatically updates forecasts when the vessel moves significantly
+- **Vessel movement prediction**: When moving (SOG > 1 knot), forecasts predict weather along the vessel's route based on current heading and speed
 - **Multiple forecast packages**: Selectable Meteoblue packages (Basic, Wind, Sea, Solar, Agro, Trend, Clouds)
 - **Hourly forecasts**: Up to 7 days (168 hours) of hourly weather data
 - **Daily forecasts**: Up to 14 days of daily weather summaries
@@ -19,6 +20,7 @@ A SignalK plugin that provides position-based weather forecast data using the Me
 - SignalK Server v2.13.0 or later
 - Meteoblue API key (free tier available)
 - Vessel position data (navigation.position)
+- Optional for movement prediction: navigation.headingTrue and navigation.speedOverGround
 
 ## Installation
 
@@ -87,6 +89,7 @@ The plugin publishes weather data to the following SignalK paths:
 - `relativehumidity`: Humidity (ratio 0-1)
 - `sealevelpressure`, `surfaceairpressure`: Pressure data (Pascals)
 - `uvindex`: UV index values
+- `isdaylight`, `rainspot`, `convective_precipitation`, `snowfraction`: Additional basic fields
 
 #### Sea Package Parameters:
 - `seasurfacetemperature`: Sea surface temperature (Kelvin)
@@ -107,7 +110,8 @@ The plugin publishes weather data to the following SignalK paths:
 
 #### Solar Package Parameters:
 - `uvindex`: UV index
-- `sunshine_duration`: Daily sunshine duration (seconds)
+- `sunshine_duration`: Sunshine duration (seconds)
+- `isdaylight`: Daylight boolean flag
 
 ## Position-based Updates
 
@@ -116,6 +120,31 @@ The plugin automatically monitors the vessel's position and updates forecasts wh
 2. The vessel has moved more than approximately 5 nautical miles from the last forecast location
 
 This ensures you always have relevant local weather data without excessive API calls.
+
+## Vessel Movement Prediction
+
+When the vessel is moving (SOG > 1 knot), the plugin enhances forecasts with predicted positions:
+
+- **Hour 0**: Weather for current position
+- **Hour 1**: Weather for predicted position after 1 hour of travel at current heading/speed
+- **Hour 2**: Weather for predicted position after 2 hours of travel
+- **And so on...**
+
+### Movement-Enhanced Data Fields
+
+When the vessel is moving, **ALL** hourly forecasts (regardless of package) include these additional fields:
+- `predictedLatitude`: Predicted latitude for this forecast hour
+- `predictedLongitude`: Predicted longitude for this forecast hour  
+- `vesselMoving`: Boolean indicating if movement prediction is active
+
+These fields are added to every package's forecast data when movement prediction is active.
+
+### Requirements for Movement Prediction
+- Valid position data (`navigation.position`)
+- True heading data (`navigation.headingTrue`) 
+- Speed over ground > 1 knot (`navigation.speedOverGround`)
+
+If any navigation data is unavailable, the plugin falls back to standard position-based forecasting.
 
 ## API Usage
 
@@ -144,13 +173,13 @@ Each Meteoblue package publishes only the data fields relevant to that package t
 **`meteo-wind-api`** - Enhanced wind data only:
 - Wind speed/direction, wind gusts, high-altitude wind (80m)
 - Air density, pressure data
-- **Does NOT include**: wave data, basic temperature/precipitation
+- **Does NOT include**: wave data or marine conditions
 
 **`meteo-sea-api`** - Marine and wave data only:
 - Wave heights (significant, wind waves, swell), wave periods, wave directions
-- Sea surface temperature, Douglas sea state, wave steepness
+- Sea surface temperature, Douglas sea state, wave steepness  
 - Ocean currents (u/v components), salinity
-- **Does NOT include**: basic weather data, wind gusts
+- **Does NOT include**: basic weather data, wind gusts, atmospheric conditions
 
 **`meteo-solar-api`** - Solar radiation data:
 - UV index, sunshine duration, daylight information
