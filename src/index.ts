@@ -425,23 +425,25 @@ export = function (app: SignalKApp): SignalKPlugin {
       const forecastTime = new Date(data.time[i]);
       const relativeHour = Math.round((forecastTime.getTime() - now.getTime()) / (1000 * 60 * 60));
 
-      // Using correct Meteoblue API field names from documentation
-      forecasts.push({
+      // Build forecast object with only available fields
+      const forecast: ProcessedHourlyForecast = {
         timestamp: data.time[i],
         relativeHour,
-        temperature: celsiusToKelvin(data.temperature[i]),
-        windSpeed: data.windspeed[i] || 0,
-        windDirection: degToRad(data.wind_direction?.[i] || 0),
-        precipitation: mmToM(data.precipitation?.[i] || 0),
-        weatherCode: data.pictocode?.[i] || 0,
-        pressure: mbToPA(data.sea_level_pressure?.[i] || 1013),
-        relativeHumidity: percentToRatio(data.humidity?.[i] || 50),
-        visibility: 10000, // Not available in basic package, using default
-        cloudCover: 0, // Not available in basic package, using default
-        uvIndex: data.uv_index?.[i] || 0,
-        feltTemperature: celsiusToKelvin(data.felttemperature?.[i] || data.temperature[i]),
-        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] || 0)
-      });
+        temperature: celsiusToKelvin(data.temperature?.[i] ?? 20), // Default 20°C if missing
+        windSpeed: data.windspeed?.[i] ?? 0,
+        windDirection: degToRad(data.wind_direction?.[i] ?? 0),
+        precipitation: mmToM(data.precipitation?.[i] ?? 0),
+        weatherCode: data.pictocode?.[i] ?? 0,
+        pressure: mbToPA(data.sea_level_pressure?.[i] ?? 1013),
+        relativeHumidity: percentToRatio(data.humidity?.[i] ?? 50),
+        visibility: data.visibility?.[i] ?? 10000, // Only set if available
+        cloudCover: percentToRatio(data.cloudcover?.[i] ?? 0), // Only set if available
+        uvIndex: data.uv_index?.[i] ?? 0,
+        feltTemperature: celsiusToKelvin(data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20),
+        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] ?? 0)
+      };
+
+      forecasts.push(forecast);
     }
 
     return forecasts;
@@ -464,26 +466,28 @@ export = function (app: SignalKApp): SignalKPlugin {
       const forecastDate = new Date(data.time[i]);
       const dayOfWeek = daysOfWeek[forecastDate.getDay()];
 
-      // Using correct Meteoblue API field names for daily data
-      forecasts.push({
+      // Build daily forecast object with available fields
+      const forecast: ProcessedDailyForecast = {
         date: data.time[i],
         dayOfWeek,
-        temperatureMax: celsiusToKelvin(data.temperature_max?.[i] || data.temperature?.[i] || 20),
-        temperatureMin: celsiusToKelvin(data.temperature_min?.[i] || data.temperature?.[i] || 20),
-        windSpeedMax: data.windspeed_max?.[i] || data.windspeed?.[i] || 0,
-        windDirection: degToRad(data.wind_direction?.[i] || 0),
-        precipitation: mmToM(data.precipitation?.[i] || 0),
-        weatherCode: data.pictocode?.[i] || 0,
-        pressureMean: mbToPA(data.sea_level_pressure?.[i] || 1013),
-        relativeHumidityMean: percentToRatio(data.humidity?.[i] || 50),
-        visibilityMean: 10000, // Not available in basic package, using default
-        cloudCoverMean: 0, // Not available in basic package, using default
-        uvIndexMax: data.uv_index?.[i] || 0,
-        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] || 0),
-        sunshineDuration: 0, // Not available in basic package, using default
-        feltTemperatureMax: celsiusToKelvin(data.felttemperature_max?.[i] || data.felttemperature?.[i] || data.temperature?.[i] || 20),
-        feltTemperatureMin: celsiusToKelvin(data.felttemperature_min?.[i] || data.felttemperature?.[i] || data.temperature?.[i] || 20)
-      });
+        temperatureMax: celsiusToKelvin(data.temperature_max?.[i] ?? data.temperature?.[i] ?? 20),
+        temperatureMin: celsiusToKelvin(data.temperature_min?.[i] ?? data.temperature?.[i] ?? 20),
+        windSpeedMax: data.windspeed_max?.[i] ?? data.windspeed?.[i] ?? 0,
+        windDirection: degToRad(data.wind_direction?.[i] ?? 0),
+        precipitation: mmToM(data.precipitation?.[i] ?? 0),
+        weatherCode: data.pictocode?.[i] ?? 0,
+        pressureMean: mbToPA(data.sea_level_pressure?.[i] ?? 1013),
+        relativeHumidityMean: percentToRatio(data.humidity?.[i] ?? 50),
+        visibilityMean: data.visibility_mean?.[i] ?? 10000, // Only if available
+        cloudCoverMean: percentToRatio(data.cloudcover_mean?.[i] ?? 0), // Only if available
+        uvIndexMax: data.uv_index?.[i] ?? 0,
+        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] ?? 0),
+        sunshineDuration: data.sunshine_duration?.[i] ?? 0, // Only if available
+        feltTemperatureMax: celsiusToKelvin(data.felttemperature_max?.[i] ?? data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20),
+        feltTemperatureMin: celsiusToKelvin(data.felttemperature_min?.[i] ?? data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20)
+      };
+
+      forecasts.push(forecast);
     }
 
     return forecasts;
