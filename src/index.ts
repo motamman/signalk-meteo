@@ -189,31 +189,46 @@ export = function (app: SignalKApp): SignalKPlugin {
       // Process the account data
       app.debug(`Account usage data received: ${JSON.stringify(data, null, 2)}`);
       
-      // Extract usage info from the response (structure may vary)
-      let usageInfo = {
-        requests_total: 1000, // Default values
-        requests_used: 0,
-        requests_remaining: 1000,
-        period_start: '',
-        period_end: '',
-        status: 'active'
-      };
+      // Process the actual Meteoblue usage API response structure
+      let totalCreditsUsed = 0;
+      let totalRequests = 0;
+      const usageByType: Record<string, { credits: number; count: number }> = {};
+      let earliestDate = '';
+      let latestDate = '';
 
-      // Try to extract actual usage data from various possible response structures
-      if (data.usage) {
-        usageInfo = { ...usageInfo, ...data.usage };
-      } else if (Array.isArray(data) && data.length > 0) {
-        // If response is an array of usage records
-        const latest = data[data.length - 1] as any;
-        usageInfo = { ...usageInfo, ...latest };
-      } else if (typeof data === 'object') {
-        // Try to find usage fields directly in the response
-        Object.keys(data).forEach(key => {
-          if (key.includes('total') || key.includes('used') || key.includes('remaining')) {
-            app.debug(`Found potential usage field: ${key} = ${data[key]}`);
+      if (data.items && Array.isArray(data.items)) {
+        // Sum up all usage from the items array
+        data.items.forEach((item: any) => {
+          totalCreditsUsed += item.request_credits || 0;
+          totalRequests += item.request_count || 0;
+          
+          // Track usage by request type
+          if (item.request_type) {
+            if (!usageByType[item.request_type]) {
+              usageByType[item.request_type] = { credits: 0, count: 0 };
+            }
+            usageByType[item.request_type].credits += item.request_credits || 0;
+            usageByType[item.request_type].count += item.request_count || 0;
+          }
+          
+          // Track date range
+          if (item.request_date) {
+            if (!earliestDate || item.request_date < earliestDate) {
+              earliestDate = item.request_date;
+            }
+            if (!latestDate || item.request_date > latestDate) {
+              latestDate = item.request_date;
+            }
           }
         });
+        
+        app.debug(`Total usage: ${totalCreditsUsed} credits, ${totalRequests} requests`);
+        app.debug(`Usage by type: ${JSON.stringify(usageByType, null, 2)}`);
       }
+
+      // Estimate monthly limit (common free tier is ~500,000 credits/month)
+      const estimatedMonthlyLimit = 500000; // This should be configurable or detected
+      const remainingCredits = Math.max(0, estimatedMonthlyLimit - totalCreditsUsed);
 
       const processedInfo: ProcessedAccountInfo = {
         username: 'Unknown', // Not available in usage API
@@ -221,15 +236,15 @@ export = function (app: SignalKApp): SignalKPlugin {
         company: 'Unknown',  // Not available in usage API
         country: 'Unknown',  // Not available in usage API
         timezone: 'Unknown', // Not available in usage API
-        totalRequests: usageInfo.requests_total,
-        usedRequests: usageInfo.requests_used,
-        remainingRequests: usageInfo.requests_remaining,
-        usagePercentage: usageInfo.requests_total > 0 
-          ? Math.round((usageInfo.requests_used / usageInfo.requests_total) * 100)
+        totalRequests: estimatedMonthlyLimit,
+        usedRequests: totalCreditsUsed,
+        remainingRequests: remainingCredits,
+        usagePercentage: estimatedMonthlyLimit > 0 
+          ? Math.round((totalCreditsUsed / estimatedMonthlyLimit) * 100)
           : 0,
-        periodStart: usageInfo.period_start,
-        periodEnd: usageInfo.period_end,
-        status: usageInfo.status,
+        periodStart: earliestDate,
+        periodEnd: latestDate,
+        status: totalCreditsUsed < estimatedMonthlyLimit ? 'active' : 'limit_exceeded',
         lastChecked: new Date().toISOString()
       };
 
@@ -406,7 +421,88 @@ export = function (app: SignalKApp): SignalKPlugin {
            `format=json`;
   };
 
-  const processHourlyForecast = (data: Record<string, unknown[]> | any, maxHours: number): ProcessedHourlyForecast[] => {
+
+
+  // Define which fields belong to which package (hourly data)
+  const getHourlyPackageFields = (packageType: string): string[] => {
+    
+    const fieldMappings: Record<string, string[]> = {
+      'basic': [
+        'temperature', 'windspeed', 'winddirection', 'precipitation', 'pictocode', 
+        'relativehumidity', 'sealevelpressure', 'surfaceairpressure', 'uvindex', 
+        'felttemperature', 'precipitation_probability', 'isdaylight', 'rainspot',
+        'convective_precipitation', 'snowfraction'
+      ],
+      'wind': [
+        'windspeed', 'winddirection', 'gust', 'windspeed_80m', 'winddirection_80m',
+        'airdensity', 'surfaceairpressure', 'sealevelpressure'
+      ],
+      'sea': [
+        'seasurfacetemperature', 'significantwaveheight', 'surfwave_height', 
+        'windwave_height', 'swell_significantheight', 'mean_waveperiod',
+        'windwave_meanperiod', 'swell_meanperiod', 'windwave_peakwaveperiod',
+        'swell_peakwaveperiod', 'mean_wavedirection', 'windwave_direction',
+        'swell_meandirection', 'douglas_seastate', 'wavesteepness',
+        'currentvelocity_u', 'currentvelocity_v', 'salinity'
+      ],
+      'solar': [
+        'uvindex', 'sunshine_duration', 'isdaylight'
+      ],
+      'agro': [
+        'temperature', 'relativehumidity', 'precipitation', 'windspeed'
+      ],
+      'trend': [
+        'temperature', 'precipitation', 'windspeed', 'winddirection'
+      ],
+      'clouds': [
+        'cloudcover', 'total_cloud_cover', 'low_cloud_cover', 'mid_cloud_cover', 
+        'high_cloud_cover'
+      ]
+    };
+    
+    return fieldMappings[packageType] || [];
+  };
+
+  // Define which fields belong to which package (daily data)
+  const getDailyPackageFields = (packageType: string): string[] => {
+    const fieldMappings: Record<string, string[]> = {
+      'basic': [
+        'temperature_max', 'temperature_min', 'temperature_mean', 'windspeed_max', 
+        'windspeed_min', 'windspeed_mean', 'winddirection', 'precipitation', 
+        'pictocode', 'relativehumidity_max', 'relativehumidity_min', 'relativehumidity_mean',
+        'sealevelpressure_max', 'sealevelpressure_min', 'sealevelpressure_mean',
+        'uvindex', 'felttemperature_max', 'felttemperature_min', 'felttemperature_mean',
+        'precipitation_probability', 'precipitation_hours', 'snowfraction', 'rainspot'
+      ],
+      'wind': [
+        'windspeed_max', 'windspeed_min', 'windspeed_mean', 'winddirection',
+        'sealevelpressure_max', 'sealevelpressure_min', 'sealevelpressure_mean'
+      ],
+      'sea': [
+        // Daily sea data would include wave summaries if available
+        'temperature_max', 'temperature_min' // Sea surface temperature if available
+      ],
+      'solar': [
+        'uvindex', 'sunshine_duration'
+      ],
+      'agro': [
+        'temperature_max', 'temperature_min', 'temperature_mean', 
+        'relativehumidity_max', 'relativehumidity_min', 'relativehumidity_mean',
+        'precipitation', 'windspeed_max', 'windspeed_min', 'windspeed_mean'
+      ],
+      'trend': [
+        'temperature_max', 'temperature_min', 'precipitation', 
+        'windspeed_max', 'winddirection'
+      ],
+      'clouds': [
+        // Daily cloud data if available in daily packages
+      ]
+    };
+    
+    return fieldMappings[packageType] || [];
+  };
+
+  const processHourlyForecastForPackage = (data: Record<string, unknown[]> | any, maxHours: number, packageType: string): ProcessedHourlyForecast[] => {
     const forecasts: ProcessedHourlyForecast[] = [];
     
     if (!data || !data.time || !Array.isArray(data.time)) {
@@ -415,33 +511,43 @@ export = function (app: SignalKApp): SignalKPlugin {
     }
     
     const now = new Date();
-    now.setMinutes(0, 0, 0); // Round to hour
-
+    now.setMinutes(0, 0, 0);
     const count = Math.min(data.time.length, maxHours);
-    app.debug(`Processing ${count} hourly forecasts from ${data.time.length} available periods`);
-    app.debug(`Available hourly fields: ${Object.keys(data).join(', ')}`);
+    const allowedFields = getHourlyPackageFields(packageType);
+    
+    app.debug(`Processing ${count} hourly forecasts for ${packageType} package with fields: ${allowedFields.join(', ')}`);
 
     for (let i = 0; i < count; i++) {
       const forecastTime = new Date(data.time[i]);
       const relativeHour = Math.round((forecastTime.getTime() - now.getTime()) / (1000 * 60 * 60));
 
-      // Build forecast object with only available fields
-      const forecast: ProcessedHourlyForecast = {
+      const forecast: any = {
         timestamp: data.time[i],
-        relativeHour,
-        temperature: celsiusToKelvin(data.temperature?.[i] ?? 20), // Default 20°C if missing
-        windSpeed: data.windspeed?.[i] ?? 0,
-        windDirection: degToRad(data.wind_direction?.[i] ?? 0),
-        precipitation: mmToM(data.precipitation?.[i] ?? 0),
-        weatherCode: data.pictocode?.[i] ?? 0,
-        pressure: mbToPA(data.sea_level_pressure?.[i] ?? 1013),
-        relativeHumidity: percentToRatio(data.humidity?.[i] ?? 50),
-        visibility: data.visibility?.[i] ?? 10000, // Only set if available
-        cloudCover: percentToRatio(data.cloudcover?.[i] ?? 0), // Only set if available
-        uvIndex: data.uv_index?.[i] ?? 0,
-        feltTemperature: celsiusToKelvin(data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20),
-        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] ?? 0)
+        relativeHour
       };
+
+      // Only extract fields that belong to this package
+      allowedFields.forEach(field => {
+        const value = data[field]?.[i];
+        if (value !== undefined && value !== null) {
+          // Apply unit conversions based on field names
+          if (field.includes('temperature') || field === 'felttemperature') {
+            forecast[field] = celsiusToKelvin(value as number);
+          } else if (field.includes('direction') || field === 'winddirection') {
+            forecast[field] = degToRad(value as number);
+          } else if (field === 'precipitation') {
+            forecast[field] = mmToM(value as number);
+          } else if (field.includes('pressure') || field === 'sealevelpressure') {
+            forecast[field] = mbToPA(value as number);
+          } else if (field.includes('humidity') || field.includes('cloudcover')) {
+            forecast[field] = percentToRatio(value as number);
+          } else if (field.includes('precipitation_probability')) {
+            forecast[field] = percentToRatio(value as number);
+          } else {
+            forecast[field] = value;
+          }
+        }
+      });
 
       forecasts.push(forecast);
     }
@@ -449,7 +555,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     return forecasts;
   };
 
-  const processDailyForecast = (data: Record<string, unknown[]> | any, maxDays: number): ProcessedDailyForecast[] => {
+  const processDailyForecastForPackage = (data: Record<string, unknown[]> | any, maxDays: number, packageType: string): ProcessedDailyForecast[] => {
     const forecasts: ProcessedDailyForecast[] = [];
     
     if (!data || !data.time || !Array.isArray(data.time)) {
@@ -459,33 +565,41 @@ export = function (app: SignalKApp): SignalKPlugin {
     
     const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const count = Math.min(data.time.length, maxDays);
-    app.debug(`Processing ${count} daily forecasts from ${data.time.length} available periods`);
-    app.debug(`Available daily fields: ${Object.keys(data).join(', ')}`);
+    const allowedFields = getDailyPackageFields(packageType);
+    
+    app.debug(`Processing ${count} daily forecasts for ${packageType} package with fields: ${allowedFields.join(', ')}`);
 
     for (let i = 0; i < count; i++) {
       const forecastDate = new Date(data.time[i]);
       const dayOfWeek = daysOfWeek[forecastDate.getDay()];
 
-      // Build daily forecast object with available fields
-      const forecast: ProcessedDailyForecast = {
+      const forecast: any = {
         date: data.time[i],
-        dayOfWeek,
-        temperatureMax: celsiusToKelvin(data.temperature_max?.[i] ?? data.temperature?.[i] ?? 20),
-        temperatureMin: celsiusToKelvin(data.temperature_min?.[i] ?? data.temperature?.[i] ?? 20),
-        windSpeedMax: data.windspeed_max?.[i] ?? data.windspeed?.[i] ?? 0,
-        windDirection: degToRad(data.wind_direction?.[i] ?? 0),
-        precipitation: mmToM(data.precipitation?.[i] ?? 0),
-        weatherCode: data.pictocode?.[i] ?? 0,
-        pressureMean: mbToPA(data.sea_level_pressure?.[i] ?? 1013),
-        relativeHumidityMean: percentToRatio(data.humidity?.[i] ?? 50),
-        visibilityMean: data.visibility_mean?.[i] ?? 10000, // Only if available
-        cloudCoverMean: percentToRatio(data.cloudcover_mean?.[i] ?? 0), // Only if available
-        uvIndexMax: data.uv_index?.[i] ?? 0,
-        precipitationProbability: percentToRatio(data.precipitation_probability?.[i] ?? 0),
-        sunshineDuration: data.sunshine_duration?.[i] ?? 0, // Only if available
-        feltTemperatureMax: celsiusToKelvin(data.felttemperature_max?.[i] ?? data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20),
-        feltTemperatureMin: celsiusToKelvin(data.felttemperature_min?.[i] ?? data.felttemperature?.[i] ?? data.temperature?.[i] ?? 20)
+        dayOfWeek
       };
+
+      // Only extract fields that belong to this package
+      allowedFields.forEach(field => {
+        const value = data[field]?.[i];
+        if (value !== undefined && value !== null) {
+          // Apply unit conversions based on field names
+          if (field.includes('temperature') || field === 'felttemperature') {
+            forecast[field] = celsiusToKelvin(value as number);
+          } else if (field.includes('direction') || field === 'winddirection') {
+            forecast[field] = degToRad(value as number);
+          } else if (field === 'precipitation') {
+            forecast[field] = mmToM(value as number);
+          } else if (field.includes('pressure') || field === 'sealevelpressure') {
+            forecast[field] = mbToPA(value as number);
+          } else if (field.includes('humidity') || field.includes('cloudcover')) {
+            forecast[field] = percentToRatio(value as number);
+          } else if (field.includes('precipitation_probability')) {
+            forecast[field] = percentToRatio(value as number);
+          } else {
+            forecast[field] = value;
+          }
+        }
+      });
 
       forecasts.push(forecast);
     }
@@ -543,6 +657,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     });
   };
 
+
   const fetchForecast = async (position: Position, config: PluginConfig): Promise<void> => {
     if (!config.meteoblueApiKey) {
       app.error('Meteoblue API key not configured');
@@ -585,15 +700,14 @@ export = function (app: SignalKApp): SignalKPlugin {
       if (data.data_1h) {
         const hourlyPackages = enabledPackages.filter(pkg => pkg.includes('-1h'));
         if (hourlyPackages.length > 0) {
-          const hourlyForecasts = processHourlyForecast(data.data_1h, config.maxForecastHours);
-          
-          // Publish for each enabled hourly package type
+          // Process and publish package-specific data for each enabled package
           hourlyPackages.forEach(packageName => {
             const packageType = packageName.replace('-1h', '');
-            publishHourlyForecasts(hourlyForecasts, packageType);
+            const packageForecasts = processHourlyForecastForPackage(data.data_1h, config.maxForecastHours, packageType);
+            publishHourlyForecasts(packageForecasts, packageType);
           });
           
-          app.debug(`Published ${hourlyForecasts.length} hourly forecasts for packages: ${hourlyPackages.join(', ')}`);
+          app.debug(`Published hourly forecasts for packages: ${hourlyPackages.join(', ')}`);
         }
       }
 
@@ -601,15 +715,14 @@ export = function (app: SignalKApp): SignalKPlugin {
       if (data.data_day) {
         const dailyPackages = enabledPackages.filter(pkg => pkg.includes('-day'));
         if (dailyPackages.length > 0) {
-          const dailyForecasts = processDailyForecast(data.data_day, config.maxForecastDays);
-          
-          // Publish for each enabled daily package type
+          // Process and publish package-specific data for each enabled daily package
           dailyPackages.forEach(packageName => {
             const packageType = packageName.replace('-day', '');
-            publishDailyForecasts(dailyForecasts, packageType);
+            const packageForecasts = processDailyForecastForPackage(data.data_day, config.maxForecastDays, packageType);
+            publishDailyForecasts(packageForecasts, packageType);
           });
           
-          app.debug(`Published ${dailyForecasts.length} daily forecasts for packages: ${dailyPackages.join(', ')}`);
+          app.debug(`Published daily forecasts for packages: ${dailyPackages.join(', ')}`);
         }
       }
 
