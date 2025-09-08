@@ -441,7 +441,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     return packages;
   };
 
-  const buildMeteoblueUrl = (lat: number, lon: number, config: PluginConfig): string => {
+  const buildMeteoblueUrl = (lat: number, lon: number, config: PluginConfig, maxHours?: number): string => {
     const packages = getEnabledPackages(config);
     
     if (packages.length === 0) {
@@ -449,13 +449,23 @@ export = function (app: SignalKApp): SignalKPlugin {
     }
     
     const packageStr = packages.join('_');
+    let url = `https://my.meteoblue.com/packages/${packageStr}?` +
+              `apikey=${config.meteoblueApiKey}&` +
+              `lat=${lat}&` +
+              `lon=${lon}&` +
+              `asl=${config.altitude}&` +
+              `format=json`;
     
-    return `https://my.meteoblue.com/packages/${packageStr}?` +
-           `apikey=${config.meteoblueApiKey}&` +
-           `lat=${lat}&` +
-           `lon=${lon}&` +
-           `asl=${config.altitude}&` +
-           `format=json`;
+    // Add time restrictions for efficient position-based calls
+    if (maxHours !== undefined) {
+      const now = new Date();
+      const endTime = new Date(now.getTime() + maxHours * 3600000);
+      url += `&timeformat=iso&` +
+             `starttime=${now.toISOString().split('.')[0]}&` +
+             `endtime=${endTime.toISOString().split('.')[0]}`;
+    }
+    
+    return url;
   };
 
 
@@ -586,16 +596,8 @@ export = function (app: SignalKApp): SignalKPlugin {
         }
       });
 
-      // Add predicted position if vessel is moving
-      if (state.currentPosition && state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
-        const predictedPos = calculateFuturePosition(state.currentPosition, state.currentHeading, state.currentSOG, relativeHour);
-        forecast.predictedLatitude = predictedPos.latitude;
-        forecast.predictedLongitude = predictedPos.longitude;
-        forecast.vesselMoving = true;
-        app.debug(`Hour ${relativeHour}: Predicted position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)}`);
-      } else {
-        forecast.vesselMoving = false;
-      }
+      // Movement prediction is now handled by fetchForecastForMovingVessel
+      // This function only handles stationary forecasts or fallback scenarios
 
       forecasts.push(forecast);
     }
@@ -705,6 +707,104 @@ export = function (app: SignalKApp): SignalKPlugin {
     });
   };
 
+
+  const fetchForecastForMovingVessel = async (config: PluginConfig): Promise<void> => {
+    if (!state.currentPosition || !state.currentHeading || !state.currentSOG || !isVesselMoving(state.currentSOG)) {
+      app.debug('Vessel not moving or missing navigation data, falling back to stationary forecast');
+      return fetchForecast(state.currentPosition!, config);
+    }
+
+    app.debug(`Vessel moving at ${(state.currentSOG * 1.943844).toFixed(1)} knots, heading ${(state.currentHeading * 180 / Math.PI).toFixed(1)}°`);
+    app.debug(`Fetching position-specific forecasts for ${config.maxForecastHours} hours`);
+
+    const allHourlyForecasts: Record<string, any[]> = {};
+    const enabledHourlyPackages = getEnabledPackages(config).filter(pkg => pkg.includes('-1h'));
+    
+    try {
+      // Initialize forecast arrays for each package
+      enabledHourlyPackages.forEach(packageName => {
+        const packageType = packageName.replace('-1h', '');
+        allHourlyForecasts[packageType] = [];
+      });
+
+      // Fetch forecast for each hour at predicted positions
+      for (let hour = 0; hour < config.maxForecastHours; hour++) {
+        const predictedPos = calculateFuturePosition(state.currentPosition, state.currentHeading, state.currentSOG, hour);
+        
+        app.debug(`Hour ${hour}: Fetching weather for position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)}`);
+        
+        // Request only the hours we need (0 to hour) to minimize data transfer
+        const maxHours = hour + 1;
+        const url = buildMeteoblueUrl(predictedPos.latitude, predictedPos.longitude, config, maxHours);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json() as any;
+        
+        if (data.data_1h && data.data_1h.time) {
+          // Extract only the data for the target hour (index = hour)
+          if (data.data_1h.time.length > hour) {
+            enabledHourlyPackages.forEach(packageName => {
+              const packageType = packageName.replace('-1h', '');
+              const forecast = processHourlyForecastForPackage(data.data_1h, maxHours, packageType);
+              
+              // Take only the forecast for this specific hour
+              if (forecast.length > hour) {
+                const hourForecast = forecast[hour] as any;
+                hourForecast.predictedLatitude = predictedPos.latitude;
+                hourForecast.predictedLongitude = predictedPos.longitude;
+                hourForecast.vesselMoving = true;
+                allHourlyForecasts[packageType].push(hourForecast);
+              }
+            });
+          }
+        }
+        
+        // Add small delay between API calls to be respectful
+        if (hour < config.maxForecastHours - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      // Publish forecasts for each package
+      Object.keys(allHourlyForecasts).forEach(packageType => {
+        const forecasts = allHourlyForecasts[packageType];
+        if (forecasts.length > 0) {
+          publishHourlyForecasts(forecasts, packageType);
+          app.debug(`Published ${forecasts.length} position-specific forecasts for ${packageType} package`);
+        }
+      });
+
+      // Handle daily forecasts (still use current position for daily summaries)
+      app.debug('Fetching daily forecasts for current position');
+      const dailyUrl = buildMeteoblueUrl(state.currentPosition.latitude, state.currentPosition.longitude, config);
+      const dailyResponse = await fetch(dailyUrl);
+      if (dailyResponse.ok) {
+        const dailyData = await dailyResponse.json() as any;
+        if (dailyData.data_day) {
+          const dailyPackages = getEnabledPackages(config).filter(pkg => pkg.includes('-day'));
+          dailyPackages.forEach(packageName => {
+            const packageType = packageName.replace('-day', '');
+            const dailyForecasts = processDailyForecastForPackage(dailyData.data_day, config.maxForecastDays, packageType);
+            publishDailyForecasts(dailyForecasts, packageType);
+          });
+          app.debug(`Published daily forecasts for packages: ${dailyPackages.join(', ')}`);
+        }
+      }
+
+      state.lastForecastUpdate = Date.now();
+      state.currentPosition = { ...state.currentPosition };
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      app.error(`Failed to fetch position-specific forecasts: ${errorMsg}`);
+      app.debug('Falling back to stationary forecast');
+      return fetchForecast(state.currentPosition!, config);
+    }
+  };
 
   const fetchForecast = async (position: Position, config: PluginConfig): Promise<void> => {
     if (!config.meteoblueApiKey) {
@@ -857,7 +957,15 @@ export = function (app: SignalKApp): SignalKPlugin {
 
             if (shouldUpdateForecast(position) && state.currentConfig) {
               app.debug(`Position changed significantly, updating forecast`);
-              fetchForecast(position, state.currentConfig);
+              
+              // Check if vessel is moving and use appropriate forecast method
+              if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+                app.debug('Using position-specific forecasting for moving vessel');
+                fetchForecastForMovingVessel(state.currentConfig);
+              } else {
+                app.debug('Using standard forecasting for stationary vessel');
+                fetchForecast(position, state.currentConfig);
+              }
             }
           } else {
             app.debug('Position update received but no valid position data found');
@@ -929,7 +1037,15 @@ export = function (app: SignalKApp): SignalKPlugin {
     state.forecastInterval = setInterval(async () => {
       if (state.currentPosition && state.forecastEnabled) {
         app.debug('Periodic forecast update');
-        await fetchForecast(state.currentPosition, config);
+        
+        // Use appropriate forecast method based on vessel movement
+        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+          app.debug('Periodic update: Using position-specific forecasting for moving vessel');
+          await fetchForecastForMovingVessel(config);
+        } else {
+          app.debug('Periodic update: Using standard forecasting for stationary vessel');
+          await fetchForecast(state.currentPosition, config);
+        }
       }
     }, intervalMs);
 
@@ -948,7 +1064,14 @@ export = function (app: SignalKApp): SignalKPlugin {
     setTimeout(async () => {
       // If we have a stored position or can get current position, fetch immediately
       if (state.currentPosition) {
-        await fetchForecast(state.currentPosition, config);
+        // Use appropriate forecast method based on initial conditions
+        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+          app.debug('Initial fetch: Using position-specific forecasting for moving vessel');
+          await fetchForecastForMovingVessel(config);
+        } else {
+          app.debug('Initial fetch: Using standard forecasting for stationary vessel');
+          await fetchForecast(state.currentPosition, config);
+        }
       } else {
         app.debug('No position available yet, will wait for position subscription or manual trigger');
         // For testing, you could add a hardcoded position here:
