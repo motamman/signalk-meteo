@@ -30,6 +30,8 @@ export = function (app: SignalKApp): SignalKPlugin {
     navigationSubscriptions: [],
     currentConfig: undefined,
     currentPosition: null,
+    currentHeading: null,
+    currentSOG: null,
     lastForecastUpdate: 0,
     lastAccountCheck: 0,
     forecastEnabled: true,
@@ -169,6 +171,41 @@ export = function (app: SignalKApp): SignalKPlugin {
   const mbToPA = (mb: number): number => mb * 100;
   const mmToM = (mm: number): number => mm / 1000;
   const percentToRatio = (percent: number): number => percent / 100;
+  
+  // Position prediction utilities for moving vessels
+  const calculateFuturePosition = (currentPos: Position, headingRad: number, sogMps: number, hoursAhead: number): Position => {
+    // Calculate distance traveled in hoursAhead
+    const distanceMeters = sogMps * hoursAhead * 3600; // distance = speed × time (in seconds)
+    
+    // Earth's radius in meters
+    const earthRadius = 6371000;
+    
+    // Convert current position to radians
+    const lat1 = degToRad(currentPos.latitude);
+    const lon1 = degToRad(currentPos.longitude);
+    
+    // Calculate new position using spherical trigonometry
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(distanceMeters / earthRadius) +
+      Math.cos(lat1) * Math.sin(distanceMeters / earthRadius) * Math.cos(headingRad)
+    );
+    
+    const lon2 = lon1 + Math.atan2(
+      Math.sin(headingRad) * Math.sin(distanceMeters / earthRadius) * Math.cos(lat1),
+      Math.cos(distanceMeters / earthRadius) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    
+    return {
+      latitude: lat2 * (180 / Math.PI), // Convert back to degrees
+      longitude: lon2 * (180 / Math.PI),
+      timestamp: new Date(currentPos.timestamp.getTime() + hoursAhead * 3600000)
+    };
+  };
+  
+  const isVesselMoving = (sogMps: number): boolean => {
+    // Consider vessel moving if SOG > 1 knot (0.514 m/s)
+    return sogMps > 0.514444;
+  };
 
   const getSourceLabel = (packageType: string): string => {
     return `meteo-${packageType}-api`;
@@ -549,6 +586,17 @@ export = function (app: SignalKApp): SignalKPlugin {
         }
       });
 
+      // Add predicted position if vessel is moving
+      if (state.currentPosition && state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+        const predictedPos = calculateFuturePosition(state.currentPosition, state.currentHeading, state.currentSOG, relativeHour);
+        forecast.predictedLatitude = predictedPos.latitude;
+        forecast.predictedLongitude = predictedPos.longitude;
+        forecast.vesselMoving = true;
+        app.debug(`Hour ${relativeHour}: Predicted position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)}`);
+      } else {
+        forecast.vesselMoving = false;
+      }
+
       forecasts.push(forecast);
     }
 
@@ -752,6 +800,14 @@ export = function (app: SignalKApp): SignalKPlugin {
         path: 'navigation.position',
         period: 60000, // Check position every minute
         format: 'delta'
+      }, {
+        path: 'navigation.headingTrue',
+        period: 60000, // Check heading every minute
+        format: 'delta'
+      }, {
+        path: 'navigation.speedOverGround',
+        period: 60000, // Check SOG every minute
+        format: 'delta'
       }]
     };
 
@@ -767,7 +823,22 @@ export = function (app: SignalKApp): SignalKPlugin {
       (delta) => {
         try {
           app.debug('Received position update from subscription');
-          const positionUpdate = delta.updates[0]?.values?.find(v => v.path === 'navigation.position');
+          // Process navigation updates
+          const updates = delta.updates[0]?.values || [];
+          let positionUpdate: any = null;
+          
+          updates.forEach(update => {
+            if (update.path === 'navigation.position') {
+              positionUpdate = update;
+            } else if (update.path === 'navigation.headingTrue' && typeof update.value === 'number') {
+              state.currentHeading = update.value;
+              app.debug(`Heading received: ${(update.value * 180 / Math.PI).toFixed(1)}°`);
+            } else if (update.path === 'navigation.speedOverGround' && typeof update.value === 'number') {
+              state.currentSOG = update.value;
+              app.debug(`SOG received: ${(update.value * 1.943844).toFixed(1)} knots`);
+            }
+          });
+
           if (positionUpdate?.value && typeof positionUpdate.value === 'object') {
             const posValue = positionUpdate.value as { latitude: number; longitude: number };
             const position: Position = {

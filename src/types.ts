@@ -68,6 +68,8 @@ export interface PluginState {
   navigationSubscriptions: Array<() => void>;
   currentConfig?: PluginConfig;
   currentPosition: Position | null;
+  currentHeading: number | null; // radians, true heading
+  currentSOG: number | null; // m/s, speed over ground
   lastForecastUpdate: number;
   lastAccountCheck: number;
   forecastEnabled: boolean;
@@ -79,6 +81,12 @@ export interface Position {
   latitude: number;
   longitude: number;
   timestamp: Date;
+}
+
+// Predicted position for future forecast hours
+export interface PredictedPosition extends Position {
+  hour: number; // relative hour (0 = now, 1 = +1 hour, etc.)
+  distanceFromCurrent: number; // nautical miles from current position
 }
 
 // Meteoblue API response types
