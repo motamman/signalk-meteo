@@ -61,7 +61,7 @@
   "signalk": {
     "appSupport": "none",
     "compatibility": ">=2.13.0",
-    "displayName": "SignalK Meteo Plugin"
+    "displayName": "SignalK Meteo Ingester"
   },
   "files": [
     "dist/**/*",

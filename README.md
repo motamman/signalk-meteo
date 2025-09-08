@@ -1,4 +1,4 @@
-# SignalK Meteo Plugin
+# SignalK Meteo Ingester 
 
 A SignalK plugin that provides position-based weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on the vessel's current position and publishes the data to SignalK.
 
@@ -64,11 +64,10 @@ The plugin publishes weather data to the following SignalK paths:
 - `notifications.meteo.apiUsage`: API usage warnings and alerts (SignalK notification format)
 
 ### Hourly Forecasts
-- `environment.outside.meteo.forecast.hourly.{N}`: Individual hourly forecasts (N = 0 to maxHours-1)
-- `environment.outside.meteo.forecast.{parameter}.hour`: Structured data by parameter with relative hour keys
+- `environment.outside.meteo.forecast.hourly.{parameter}.{N}`: Individual parameters for each hour (N = 0 to maxHours-1)
 
 ### Daily Forecasts
-- `environment.outside.meteo.forecast.daily.{N}`: Individual daily forecasts (N = 0 to maxDays-1)
+- `environment.outside.meteo.forecast.daily.{parameter}.{N}`: Individual parameters for each day (N = 0 to maxDays-1)
 
 ### Available Parameters
 
@@ -126,18 +125,48 @@ The plugin uses the Meteoblue API with configurable packages:
 
 API calls are made at the configured interval or when position changes significantly. Each enabled package consumes API quota, so select only the packages you need. The free tier typically allows for reasonable usage for most vessels.
 
-## Source Identification
+## Source Identification and Package-Specific Data
 
-Data from different packages is published with specific source labels:
-- `meteo-basic-api` - Basic weather data
-- `meteo-wind-api` - Wind data
-- `meteo-sea-api` - Marine data
-- `meteo-solar-api` - Solar data
-- `meteo-agro-api` - Agricultural data
-- `meteo-trend-api` - Trend data
-- `meteo-clouds-api` - Cloud data
-- `meteo-metadata-api` - Forecast metadata
-- `meteo-account-api` - Account information and usage statistics
+Each Meteoblue package publishes only the data fields relevant to that package type. This ensures that wave data only appears in sea sources, wind gusts only in wind sources, etc.
+
+### Package-Specific Source Data
+
+**`meteo-basic-api`** - Core weather data only:
+- Temperature, wind speed/direction, precipitation, weather codes
+- Pressure, humidity, UV index, precipitation probability
+- **Does NOT include**: wave data, wind gusts, marine conditions
+
+**`meteo-wind-api`** - Enhanced wind data only:
+- Wind speed/direction, wind gusts, high-altitude wind (80m)
+- Air density, pressure data
+- **Does NOT include**: wave data, basic temperature/precipitation
+
+**`meteo-sea-api`** - Marine and wave data only:
+- Wave heights (significant, wind waves, swell), wave periods, wave directions
+- Sea surface temperature, Douglas sea state, wave steepness
+- Ocean currents (u/v components), salinity
+- **Does NOT include**: basic weather data, wind gusts
+
+**`meteo-solar-api`** - Solar radiation data:
+- UV index, sunshine duration, daylight information
+
+**`meteo-agro-api`** - Agricultural weather data:
+- Temperature ranges, humidity, precipitation, wind for farming
+
+**`meteo-trend-api`** - Weather trend analysis data
+
+**`meteo-clouds-api`** - Detailed cloud cover data
+
+**`meteo-metadata-api`** - Forecast metadata (location, model run info)
+
+**`meteo-account-api`** - API usage statistics and account information
+
+### Data Paths
+All packages publish to the same SignalK paths but with different source identifiers:
+- Hourly: `environment.outside.meteo.forecast.hourly.{parameter}.{index}`
+- Daily: `environment.outside.meteo.forecast.daily.{parameter}.{index}`
+
+The source label indicates which Meteoblue package the data originated from, allowing consumers to choose data from specific packages or combine data from multiple sources as needed.
 
 ## Troubleshooting
 
