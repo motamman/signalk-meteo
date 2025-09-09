@@ -187,6 +187,39 @@ export = function (app: SignalKApp): SignalKPlugin {
   const mmToM = (mm: number): number => mm / 1000;
   const percentToRatio = (percent: number): number => percent / 100;
   
+  // Douglas Sea State scale descriptions
+  const douglasSeaStateSimple = (scale: number): string => {
+    const descriptions: Record<number, string> = {
+      0: 'Calm',
+      1: 'Calm',
+      2: 'Smooth',
+      3: 'Slight',
+      4: 'Moderate', 
+      5: 'Rough',
+      6: 'Very rough',
+      7: 'High',
+      8: 'Very high',
+      9: 'Phenomenal'
+    };
+    return descriptions[Math.round(scale)] || `Unknown`;
+  };
+  
+  const douglasSeaStateVerbose = (scale: number): string => {
+    const descriptions: Record<number, string> = {
+      0: 'Calm (0m) - Sea like a mirror',
+      1: 'Calm (0-0.1m) - Ripples with appearance of scales, no foam crests',
+      2: 'Smooth (0.1-0.5m) - Small wavelets, crests of glassy appearance, not breaking',
+      3: 'Slight (0.5-1.25m) - Large wavelets, crests begin to break, scattered whitecaps',
+      4: 'Moderate (1.25-2.5m) - Small waves becoming longer, numerous whitecaps', 
+      5: 'Rough (2.5-4m) - Moderate waves, many whitecaps, some spray',
+      6: 'Very rough (4-6m) - Large waves, whitecaps everywhere, more spray',
+      7: 'High (6-9m) - Sea heaps up, white foam streaks off breakers',
+      8: 'Very high (9-14m) - Moderately high waves, crests break into spindrift',
+      9: 'Phenomenal (>14m) - High waves, dense foam, sea completely white with driving spray'
+    };
+    return descriptions[Math.round(scale)] || `Unknown (${scale})`;
+  };
+  
   // Position prediction utilities for moving vessels
   const calculateFuturePosition = (currentPos: Position, headingRad: number, sogMps: number, hoursAhead: number): Position => {
     // Calculate distance traveled in hoursAhead
@@ -409,6 +442,14 @@ export = function (app: SignalKApp): SignalKPlugin {
       'douglas_seastate': {
         displayName: 'Douglas Sea State',
         description: 'Douglas sea state scale forecast'
+      },
+      'douglas_seastate_description': {
+        displayName: 'Douglas Sea State Description',
+        description: 'Douglas sea state scale description (simple)'
+      },
+      'douglas_seastate_verbose': {
+        displayName: 'Douglas Sea State Verbose',
+        description: 'Douglas sea state scale description with wave heights and conditions'
       },
       'isdaylight': {
         displayName: 'Is Daylight',
@@ -858,6 +899,11 @@ export = function (app: SignalKApp): SignalKPlugin {
             forecast[field] = percentToRatio(value as number);
           } else if (field.includes('precipitation_probability')) {
             forecast[field] = percentToRatio(value as number);
+          } else if (field === 'douglas_seastate') {
+            forecast[field] = value;
+            // Add description fields for Douglas Sea State
+            forecast['douglas_seastate_description'] = douglasSeaStateSimple(value as number);
+            forecast['douglas_seastate_verbose'] = douglasSeaStateVerbose(value as number);
           } else {
             forecast[field] = value;
           }
@@ -913,6 +959,11 @@ export = function (app: SignalKApp): SignalKPlugin {
             forecast[field] = percentToRatio(value as number);
           } else if (field.includes('precipitation_probability')) {
             forecast[field] = percentToRatio(value as number);
+          } else if (field === 'douglas_seastate') {
+            forecast[field] = value;
+            // Add description fields for Douglas Sea State
+            forecast['douglas_seastate_description'] = douglasSeaStateSimple(value as number);
+            forecast['douglas_seastate_verbose'] = douglasSeaStateVerbose(value as number);
           } else {
             forecast[field] = value;
           }
@@ -1008,14 +1059,19 @@ export = function (app: SignalKApp): SignalKPlugin {
       });
 
       // Fetch forecast for each hour at predicted positions
+      const now = new Date();
+      const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
+      
       for (let hour = 0; hour < config.maxForecastHours; hour++) {
         const predictedPos = calculateFuturePosition(state.currentPosition, state.currentHeading, state.currentSOG, hour);
+        const targetTime = new Date(currentHour.getTime() + hour * 3600000); // Current hour + hour offset
         
-        app.debug(`Hour ${hour}: Fetching weather for position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)}`);
+        app.debug(`Hour ${hour}: Fetching weather for position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)} for time ${targetTime.toISOString()}`);
         
-        // Request only the hours we need (0 to hour) to minimize data transfer
-        const maxHours = hour + 1;
-        const url = buildMeteoblueUrl(predictedPos.latitude, predictedPos.longitude, config, maxHours);
+        // Request data from midnight up to the needed hour + buffer to ensure we have the target hour
+        const hoursFromMidnight = targetTime.getHours();
+        const totalHoursNeeded = hoursFromMidnight + 1 + 2; // Target hour + buffer
+        const url = buildMeteoblueUrl(predictedPos.latitude, predictedPos.longitude, config, totalHoursNeeded);
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -1025,22 +1081,37 @@ export = function (app: SignalKApp): SignalKPlugin {
         const data = await response.json() as any;
         
         if (data.data_1h && data.data_1h.time) {
-          // Extract only the data for the target hour (index = hour)
-          if (data.data_1h.time.length > hour) {
-            enabledHourlyPackages.forEach(packageName => {
-              const packageType = packageName.replace('-1h', '');
-              const forecast = processHourlyForecastForPackage(data.data_1h, maxHours, packageType);
-              
-              // Take only the forecast for this specific hour
-              if (forecast.length > hour) {
-                const hourForecast = forecast[hour] as any;
-                hourForecast.predictedLatitude = predictedPos.latitude;
-                hourForecast.predictedLongitude = predictedPos.longitude;
-                hourForecast.vesselMoving = true;
-                allHourlyForecasts[packageType].push(hourForecast);
+          enabledHourlyPackages.forEach(packageName => {
+            const packageType = packageName.replace('-1h', '');
+            
+            // Process all forecast data first
+            const allForecasts = processHourlyForecastForPackage(data.data_1h, totalHoursNeeded, packageType);
+            
+            // Find the forecast that matches our target time (current hour + hour offset)
+            let targetForecast = null;
+            for (const forecast of allForecasts) {
+              const forecastTime = new Date(forecast.timestamp);
+              // Match by hour (ignore minutes/seconds)
+              if (forecastTime.getFullYear() === targetTime.getFullYear() &&
+                  forecastTime.getMonth() === targetTime.getMonth() &&
+                  forecastTime.getDate() === targetTime.getDate() &&
+                  forecastTime.getHours() === targetTime.getHours()) {
+                targetForecast = forecast;
+                break;
               }
-            });
-          }
+            }
+            
+            if (targetForecast) {
+              const hourForecast = { ...targetForecast } as any;
+              hourForecast.predictedLatitude = predictedPos.latitude;
+              hourForecast.predictedLongitude = predictedPos.longitude;
+              hourForecast.vesselMoving = true;
+              allHourlyForecasts[packageType].push(hourForecast);
+              app.debug(`Added forecast for ${packageType} at position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)} for ${targetForecast.timestamp}`);
+            } else {
+              app.debug(`Warning: No forecast found for target time ${targetTime.toISOString()} at position ${predictedPos.latitude.toFixed(6)}, ${predictedPos.longitude.toFixed(6)}`);
+            }
+          });
         }
         
         // Add small delay between API calls to be respectful
