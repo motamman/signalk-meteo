@@ -35,7 +35,8 @@ export = function (app: SignalKApp): SignalKPlugin {
     lastForecastUpdate: 0,
     lastAccountCheck: 0,
     forecastEnabled: true,
-    accountInfo: null
+    accountInfo: null,
+    movingForecastEngaged: false
   };
 
   // Configuration schema
@@ -161,6 +162,20 @@ export = function (app: SignalKApp): SignalKPlugin {
         default: 10,
         minimum: 1,
         maximum: 14
+      },
+      enableAutoMovingForecast: {
+        type: 'boolean',
+        title: 'Auto-Enable Moving Forecasts',
+        description: 'Automatically enable moving vessel forecasts when speed exceeds the moving speed threshold. When disabled, moving forecasts must be manually enabled via commands.meteo.engaged',
+        default: true
+      },
+      movingSpeedThreshold: {
+        type: 'number',
+        title: 'Moving Speed Threshold (knots)',
+        description: 'Speed threshold above which the vessel is considered moving and triggers moving forecasts',
+        default: 1.0,
+        minimum: 0.1,
+        maximum: 10.0
       }
     }
   };
@@ -202,9 +217,10 @@ export = function (app: SignalKApp): SignalKPlugin {
     };
   };
   
-  const isVesselMoving = (sogMps: number): boolean => {
-    // Consider vessel moving if SOG > 1 knot (0.514 m/s)
-    return sogMps > 0.514444;
+  const isVesselMoving = (sogMps: number, thresholdKnots: number = 1.0): boolean => {
+    // Consider vessel moving if SOG > threshold (convert knots to m/s)
+    const thresholdMps = thresholdKnots * 0.514444;
+    return sogMps > thresholdMps;
   };
 
   const getSourceLabel = (packageType: string): string => {
@@ -709,12 +725,12 @@ export = function (app: SignalKApp): SignalKPlugin {
 
 
   const fetchForecastForMovingVessel = async (config: PluginConfig): Promise<void> => {
-    if (!state.currentPosition || !state.currentHeading || !state.currentSOG || !isVesselMoving(state.currentSOG)) {
-      app.debug('Vessel not moving or missing navigation data, falling back to stationary forecast');
+    if (!state.currentPosition || !state.currentHeading || !state.currentSOG || !isVesselMoving(state.currentSOG, config.movingSpeedThreshold) || !state.movingForecastEngaged) {
+      app.debug('Vessel not moving, missing navigation data, or moving forecast not engaged, falling back to stationary forecast');
       return fetchForecast(state.currentPosition!, config);
     }
 
-    app.debug(`Vessel moving at ${(state.currentSOG * 1.943844).toFixed(1)} knots, heading ${(state.currentHeading * 180 / Math.PI).toFixed(1)}°`);
+    app.debug(`Vessel moving at ${(state.currentSOG * 1.943844).toFixed(1)} knots (threshold: ${config.movingSpeedThreshold} knots), heading ${(state.currentHeading * 180 / Math.PI).toFixed(1)}°`);
     app.debug(`Fetching position-specific forecasts for ${config.maxForecastHours} hours`);
 
     const allHourlyForecasts: Record<string, any[]> = {};
@@ -936,6 +952,26 @@ export = function (app: SignalKApp): SignalKPlugin {
             } else if (update.path === 'navigation.speedOverGround' && typeof update.value === 'number') {
               state.currentSOG = update.value;
               app.debug(`SOG received: ${(update.value * 1.943844).toFixed(1)} knots`);
+              
+              // Auto-enable moving forecast when speed goes over threshold (if auto-enable is enabled)
+              if (state.currentConfig?.enableAutoMovingForecast && isVesselMoving(update.value, state.currentConfig.movingSpeedThreshold) && !state.movingForecastEngaged) {
+                state.movingForecastEngaged = true;
+                app.debug(`Auto-enabled moving forecast due to vessel movement exceeding ${state.currentConfig.movingSpeedThreshold} knots`);
+                
+                // Publish the engaged state
+                const delta: SignalKDelta = {
+                  context: 'vessels.self',
+                  updates: [{
+                    $source: getSourceLabel('control'),
+                    timestamp: new Date().toISOString(),
+                    values: [{
+                      path: 'commands.meteo.engaged',
+                      value: state.movingForecastEngaged
+                    }]
+                  }]
+                };
+                app.handleMessage(plugin.id, delta);
+              }
             }
           });
 
@@ -958,12 +994,12 @@ export = function (app: SignalKApp): SignalKPlugin {
             if (shouldUpdateForecast(position) && state.currentConfig) {
               app.debug(`Position changed significantly, updating forecast`);
               
-              // Check if vessel is moving and use appropriate forecast method
-              if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+              // Check if vessel is moving and moving forecast is engaged
+              if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG, state.currentConfig.movingSpeedThreshold) && state.movingForecastEngaged) {
                 app.debug('Using position-specific forecasting for moving vessel');
                 fetchForecastForMovingVessel(state.currentConfig);
               } else {
-                app.debug('Using standard forecasting for stationary vessel');
+                app.debug('Using standard forecasting for stationary vessel or moving forecast disabled');
                 fetchForecast(position, state.currentConfig);
               }
             }
@@ -1001,6 +1037,8 @@ export = function (app: SignalKApp): SignalKPlugin {
       enableTrend1h: false,
       enableClouds1h: false,
       enableCloudsDay: false,
+      enableAutoMovingForecast: true,
+      movingSpeedThreshold: 1.0,
       ...options
     };
 
@@ -1014,6 +1052,20 @@ export = function (app: SignalKApp): SignalKPlugin {
 
     app.debug('Starting Meteo plugin');
     app.setProviderStatus('Initializing...');
+
+    // Publish initial engaged state
+    const initialEngagedDelta: SignalKDelta = {
+      context: 'vessels.self',
+      updates: [{
+        $source: getSourceLabel('control'),
+        timestamp: new Date().toISOString(),
+        values: [{
+          path: 'commands.meteo.engaged',
+          value: state.movingForecastEngaged
+        }]
+      }]
+    };
+    app.handleMessage(plugin.id, initialEngagedDelta);
 
     // Validate API key and fetch initial account info
     setTimeout(async () => {
@@ -1032,18 +1084,58 @@ export = function (app: SignalKApp): SignalKPlugin {
     // Subscribe to position updates
     subscribeToPosition(config);
 
+    // Register PUT handler for moving forecast engaged control
+    app.registerPutHandler(
+      'vessels.self',
+      'commands.meteo.engaged',
+      (_context: string, path: string, value: unknown, callback?: (result: { state: string; statusCode?: number }) => void) => {
+        app.debug(`Received PUT request for ${path}: ${value}`);
+        
+        if (typeof value === 'boolean') {
+          state.movingForecastEngaged = value;
+          app.debug(`Moving forecast engaged set to: ${value}`);
+          
+          // Publish the current state back to SignalK
+          const delta: SignalKDelta = {
+            context: 'vessels.self',
+            updates: [{
+              $source: getSourceLabel('control'),
+              timestamp: new Date().toISOString(),
+              values: [{
+                path: 'commands.meteo.engaged',
+                value: state.movingForecastEngaged
+              }]
+            }]
+          };
+          app.handleMessage(plugin.id, delta);
+          
+          if (callback) {
+            callback({ state: 'COMPLETED' });
+          }
+          return { state: 'COMPLETED' };
+        } else {
+          app.error(`Invalid value for ${path}: expected boolean, got ${typeof value}`);
+          if (callback) {
+            callback({ state: 'FAILURE', statusCode: 400 });
+          }
+          return { state: 'FAILURE', statusCode: 400 };
+        }
+      },
+      plugin.id
+    );
+
     // Set up periodic forecast updates
     const intervalMs = config.forecastInterval * 60 * 1000;
     state.forecastInterval = setInterval(async () => {
       if (state.currentPosition && state.forecastEnabled) {
         app.debug('Periodic forecast update');
         
-        // Use appropriate forecast method based on vessel movement
-        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+        // Use appropriate forecast method based on vessel movement and engaged state
+        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG, config.movingSpeedThreshold) && state.movingForecastEngaged) {
           app.debug('Periodic update: Using position-specific forecasting for moving vessel');
           await fetchForecastForMovingVessel(config);
         } else {
-          app.debug('Periodic update: Using standard forecasting for stationary vessel');
+          app.debug('Periodic update: Using standard forecasting for stationary vessel or moving forecast disabled');
           await fetchForecast(state.currentPosition, config);
         }
       }
@@ -1064,12 +1156,12 @@ export = function (app: SignalKApp): SignalKPlugin {
     setTimeout(async () => {
       // If we have a stored position or can get current position, fetch immediately
       if (state.currentPosition) {
-        // Use appropriate forecast method based on initial conditions
-        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG)) {
+        // Use appropriate forecast method based on initial conditions and engaged state
+        if (state.currentHeading !== null && state.currentSOG !== null && isVesselMoving(state.currentSOG, config.movingSpeedThreshold) && state.movingForecastEngaged) {
           app.debug('Initial fetch: Using position-specific forecasting for moving vessel');
           await fetchForecastForMovingVessel(config);
         } else {
-          app.debug('Initial fetch: Using standard forecasting for stationary vessel');
+          app.debug('Initial fetch: Using standard forecasting for stationary vessel or moving forecast disabled');
           await fetchForecast(state.currentPosition, config);
         }
       } else {
@@ -1107,6 +1199,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     state.lastForecastUpdate = 0;
     state.lastAccountCheck = 0;
     state.accountInfo = null;
+    state.movingForecastEngaged = false;
 
     app.setProviderStatus('Stopped');
   };

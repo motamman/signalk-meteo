@@ -1,6 +1,6 @@
 # SignalK Meteo Ingester 
 
-A SignalK plugin that provides position-based weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on the vessel's current position and publishes the data to SignalK.
+A SignalK plugin that provides intelligent weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on your vessel's position and, when moving, predicts weather conditions along your route by calculating future positions from your current heading and speed. All data is published to SignalK in standard units.
 
 ## Features
 
@@ -42,6 +42,8 @@ The plugin requires the following configuration:
 - **Enable Position Subscription**: Automatically update forecasts when position changes significantly (default: true)
 - **Maximum Hourly Forecast Hours**: Number of hourly forecast periods (default: 72, max: 168)
 - **Maximum Daily Forecast Days**: Number of daily forecast periods (default: 10, max: 14)
+- **Auto-Enable Moving Forecasts**: Automatically enable moving vessel forecasts when speed exceeds the moving speed threshold (default: true)
+- **Moving Speed Threshold**: Speed threshold in knots above which the vessel is considered moving (default: 1.0, range: 0.1-10.0)
 
 ### Meteoblue Package Selection
 The plugin supports multiple Meteoblue forecast packages. **Basic**, **Wind**, and **Sea** packages are enabled by default:
@@ -61,6 +63,9 @@ The plugin publishes weather data to the following SignalK paths:
 ### System Information
 - `environment.outside.meteo.system.metadata`: Forecast metadata including location and model run information
 - `environment.outside.meteo.system.account`: Account information and API usage statistics
+
+### Control Paths
+- `commands.meteo.engaged`: Boolean control for enabling/disabling moving vessel forecasts (PUT enabled)
 
 ### Notifications
 - `notifications.meteo.apiUsage`: API usage warnings and alerts (SignalK notification format)
@@ -142,9 +147,66 @@ These fields are added to every package's forecast data when movement prediction
 ### Requirements for Movement Prediction
 - Valid position data (`navigation.position`)
 - True heading data (`navigation.headingTrue`) 
-- Speed over ground > 1 knot (`navigation.speedOverGround`)
+- Speed over ground exceeding the configured threshold (`navigation.speedOverGround`)
 
 If any navigation data is unavailable, the plugin falls back to standard position-based forecasting.
+
+## Moving Forecast Control
+
+The plugin provides two levels of control over moving vessel forecasts:
+
+### 1. Configuration Setting: "Auto-Enable Moving Forecasts"
+- **Location**: Plugin configuration page
+- **Default**: Enabled (checked)
+- **Purpose**: Controls whether moving forecasts automatically enable when vessel speed exceeds the configured threshold
+
+**When Enabled**:
+- Plugin automatically switches to moving forecasts when SOG exceeds the configured threshold
+- No manual intervention required
+- Provides seamless transition between stationary and moving modes
+
+**When Disabled**:
+- Plugin never automatically enables moving forecasts
+- User must manually control via the runtime control (see below)
+- Provides full manual control over forecast mode
+
+### 2. Runtime Control: `commands.meteo.engaged`
+- **Location**: SignalK data path `vessels.self.commands.meteo.engaged`
+- **Type**: Boolean (true/false)
+- **Purpose**: Manual override control for moving forecasts
+
+**Usage**:
+```bash
+# Enable moving forecasts
+curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged \
+  -H "Content-Type: application/json" \
+  -d '{"value": true}'
+
+# Disable moving forecasts (force stationary mode)
+curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged \
+  -H "Content-Type: application/json" \
+  -d '{"value": false}'
+
+# Check current state
+curl http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged
+```
+
+**Behavior**:
+- Starts as `false` (disabled) when plugin loads
+- Auto-enables to `true` when SOG exceeds the configured threshold (if auto-enable config is enabled)
+- Can be manually set to `false` to force stationary forecasting regardless of vessel speed
+- Can be manually set to `true` to enable moving forecasts (vessel still needs to be moving above threshold)
+- Current state is published to SignalK and visible in Data Browser
+
+### Control Interaction
+The two controls work together:
+
+1. **Auto-enable OFF + engaged = false**: Always stationary forecasts
+2. **Auto-enable OFF + engaged = true**: Moving forecasts when vessel is moving
+3. **Auto-enable ON + engaged = false**: User manually disabled, stays stationary until manually re-enabled
+4. **Auto-enable ON + engaged = true**: Automatic behavior active
+
+This provides both convenience (automatic mode switching) and full user control when needed.
 
 ## API Usage
 
@@ -210,6 +272,8 @@ The source label indicates which Meteoblue package the data originated from, all
 3. **API errors**: Check your API key validity and usage limits
 4. **"Could not validate API key" warning**: Check your Meteoblue API key and internet connectivity
 5. **Usage notifications**: Monitor your API usage in `environment.outside.meteo.system.account` - notifications will appear at 80% and 90% usage
+6. **Moving forecasts not working**: Check that "Auto-Enable Moving Forecasts" is enabled in config, or manually enable via `commands.meteo.engaged`
+7. **Stuck in stationary mode**: Verify vessel has heading and SOG data, or check if moving forecasts are manually disabled via `commands.meteo.engaged`
 
 ### Debug Information
 Enable debug logging in SignalK to see detailed plugin operation including:

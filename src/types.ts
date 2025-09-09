@@ -59,6 +59,8 @@ export interface PluginConfig {
   enableTrend1h: boolean;
   enableClouds1h: boolean;
   enableCloudsDay: boolean;
+  enableAutoMovingForecast: boolean;
+  movingSpeedThreshold: number;
 }
 
 // Plugin state
@@ -74,6 +76,7 @@ export interface PluginState {
   lastAccountCheck: number;
   forecastEnabled: boolean;
   accountInfo: ProcessedAccountInfo | null;
+  movingForecastEngaged: boolean;
 }
 
 // Position data
