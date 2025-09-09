@@ -5,6 +5,7 @@ export interface SignalKApp {
   handleMessage: (pluginId: string, delta: SignalKDelta) => void;
   savePluginOptions: (options: Record<string, unknown>, callback: (err?: unknown) => void) => void;
   setProviderStatus: (msg: string) => void;
+  setPluginStatus: (msg: string) => void;
   getDataDirPath: () => string;
   subscriptionmanager: {
     subscribe: (
@@ -248,6 +249,11 @@ export interface SignalKUpdate {
 export interface SignalKValue {
   path: string;
   value: unknown;
+  meta?: {
+    units?: string;
+    displayName: string;
+    description: string;
+  };
 }
 
 // Subscription types

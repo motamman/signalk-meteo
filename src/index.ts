@@ -227,6 +227,238 @@ export = function (app: SignalKApp): SignalKPlugin {
     return `meteo-${packageType}-api`;
   };
 
+  // Metadata utilities for SignalK compliance
+  const getParameterMetadata = (parameterName: string): any => {
+    const metadataMap: Record<string, any> = {
+      // Temperature parameters (SignalK compliant - Kelvin)
+      'temperature': {
+        units: 'K',
+        displayName: 'Temperature',
+        description: 'Air temperature forecast'
+      },
+      'felttemperature': {
+        units: 'K',
+        displayName: 'Felt Temperature',
+        description: 'Apparent air temperature forecast'
+      },
+      'seasurfacetemperature': {
+        units: 'K',
+        displayName: 'Sea Surface Temperature',
+        description: 'Sea surface temperature forecast'
+      },
+      
+      // Wind parameters (SignalK compliant - m/s, radians)
+      'windspeed': {
+        units: 'm/s',
+        displayName: 'Wind Speed',
+        description: 'Wind speed forecast'
+      },
+      'gust': {
+        units: 'm/s',
+        displayName: 'Wind Gust',
+        description: 'Wind gust speed forecast'
+      },
+      'windspeed_80m': {
+        units: 'm/s',
+        displayName: 'Wind Speed 80m',
+        description: 'Wind speed at 80m altitude forecast'
+      },
+      'winddirection': {
+        units: 'rad',
+        displayName: 'Wind Direction',
+        description: 'Wind direction forecast'
+      },
+      'winddirection_80m': {
+        units: 'rad',
+        displayName: 'Wind Direction 80m',
+        description: 'Wind direction at 80m altitude forecast'
+      },
+      
+      // Pressure parameters (SignalK compliant - Pascal)
+      'sealevelpressure': {
+        units: 'Pa',
+        displayName: 'Sea Level Pressure',
+        description: 'Sea level atmospheric pressure forecast'
+      },
+      'surfaceairpressure': {
+        units: 'Pa',
+        displayName: 'Surface Air Pressure',
+        description: 'Surface atmospheric pressure forecast'
+      },
+      
+      // Humidity parameters (SignalK compliant - ratio 0-1)
+      'relativehumidity': {
+        units: 'ratio',
+        displayName: 'Relative Humidity',
+        description: 'Relative humidity forecast (0-1)'
+      },
+      
+      // Precipitation parameters (SI standard - meters)
+      'precipitation': {
+        units: 'm',
+        displayName: 'Precipitation',
+        description: 'Precipitation amount forecast'
+      },
+      'convective_precipitation': {
+        units: 'm',
+        displayName: 'Convective Precipitation',
+        description: 'Convective precipitation amount forecast'
+      },
+      'precipitation_probability': {
+        units: 'ratio',
+        displayName: 'Precipitation Probability',
+        description: 'Precipitation probability forecast (0-1)'
+      },
+      
+      // Wave parameters (SI standard - meters, seconds, radians)
+      'significantwaveheight': {
+        units: 'm',
+        displayName: 'Significant Wave Height',
+        description: 'Significant wave height forecast'
+      },
+      'windwave_height': {
+        units: 'm',
+        displayName: 'Wind Wave Height',
+        description: 'Wind generated wave height forecast'
+      },
+      'swell_significantheight': {
+        units: 'm',
+        displayName: 'Swell Height',
+        description: 'Swell wave height forecast'
+      },
+      'mean_waveperiod': {
+        units: 's',
+        displayName: 'Wave Period',
+        description: 'Mean wave period forecast'
+      },
+      'windwave_meanperiod': {
+        units: 's',
+        displayName: 'Wind Wave Period',
+        description: 'Wind wave period forecast'
+      },
+      'swell_meanperiod': {
+        units: 's',
+        displayName: 'Swell Period',
+        description: 'Swell wave period forecast'
+      },
+      'mean_wavedirection': {
+        units: 'rad',
+        displayName: 'Wave Direction',
+        description: 'Mean wave direction forecast'
+      },
+      'windwave_direction': {
+        units: 'rad',
+        displayName: 'Wind Wave Direction',
+        description: 'Wind wave direction forecast'
+      },
+      'swell_meandirection': {
+        units: 'rad',
+        displayName: 'Swell Direction',
+        description: 'Swell wave direction forecast'
+      },
+      
+      // Current velocity parameters (SI standard - m/s)
+      'currentvelocity_u': {
+        units: 'm/s',
+        displayName: 'Current Velocity U',
+        description: 'Ocean current velocity U component forecast'
+      },
+      'currentvelocity_v': {
+        units: 'm/s',
+        displayName: 'Current Velocity V',
+        description: 'Ocean current velocity V component forecast'
+      },
+      
+      // Density parameters (SI standard - kg/m³)
+      'airdensity': {
+        units: 'kg/m³',
+        displayName: 'Air Density',
+        description: 'Air density forecast'
+      },
+      
+      // Salinity parameters (SI standard - ratio)
+      'salinity': {
+        units: 'ratio',
+        displayName: 'Salinity',
+        description: 'Water salinity forecast'
+      },
+      
+      // Duration parameters (SI standard - seconds)
+      'sunshine_duration': {
+        units: 's',
+        displayName: 'Sunshine Duration',
+        description: 'Sunshine duration forecast'
+      },
+      
+      // Visibility parameters (SI standard - meters)
+      'visibility': {
+        units: 'm',
+        displayName: 'Visibility',
+        description: 'Visibility distance forecast'
+      },
+      
+      // Dimensionless parameters
+      'uvindex': {
+        displayName: 'UV Index',
+        description: 'UV index forecast'
+      },
+      'pictocode': {
+        displayName: 'Weather Code',
+        description: 'Meteoblue weather pictogram code'
+      },
+      'douglas_seastate': {
+        displayName: 'Douglas Sea State',
+        description: 'Douglas sea state scale forecast'
+      },
+      'isdaylight': {
+        displayName: 'Is Daylight',
+        description: 'Daylight indicator (0=night, 1=day)'
+      },
+      'snowfraction': {
+        displayName: 'Snow Fraction',
+        description: 'Snow fraction of precipitation (0-1)'
+      },
+      'rainspot': {
+        displayName: 'Rain Spot',
+        description: 'Local rain probability indicator'
+      },
+      'vesselMoving': {
+        displayName: 'Vessel Moving',
+        description: 'Indicates if vessel movement prediction is active'
+      },
+      
+      // Position parameters for moving vessel forecasts
+      'predictedLatitude': {
+        units: 'rad',
+        displayName: 'Predicted Latitude',
+        description: 'Predicted vessel latitude for this forecast hour'
+      },
+      'predictedLongitude': {
+        units: 'rad',
+        displayName: 'Predicted Longitude', 
+        description: 'Predicted vessel longitude for this forecast hour'
+      },
+      
+      // Time-related parameters
+      'relativeHour': {
+        units: 'h',
+        displayName: 'Relative Hour',
+        description: 'Hours from current time'
+      },
+      'dayOfWeek': {
+        units: 'ratio',
+        displayName: 'Day of Week',
+        description: 'Day of the week name'
+      }
+    };
+    
+    return metadataMap[parameterName] || {
+      units: 'ratio',
+      displayName: parameterName,
+      description: `${parameterName} forecast parameter`
+    };
+  };
+
   const fetchAccountInfo = async (config: PluginConfig): Promise<ProcessedAccountInfo | null> => {
     try {
       const url = `https://my.meteoblue.com/account/usage?apikey=${config.meteoblueApiKey}`;
@@ -682,6 +914,8 @@ export = function (app: SignalKApp): SignalKPlugin {
         if (key === 'timestamp') return; // Skip timestamp as it's part of the delta
         
         const path = `environment.outside.meteo.forecast.hourly.${key}.${index}`;
+        const metadata = getParameterMetadata(key);
+        
         const delta: SignalKDelta = {
           context: 'vessels.self',
           updates: [{
@@ -689,7 +923,8 @@ export = function (app: SignalKApp): SignalKPlugin {
             timestamp: forecast.timestamp,
             values: [{
               path,
-              value
+              value,
+              meta: metadata
             }]
           }]
         };
@@ -707,6 +942,8 @@ export = function (app: SignalKApp): SignalKPlugin {
         if (key === 'date') return; // Skip date as it's handled separately
         
         const path = `environment.outside.meteo.forecast.daily.${key}.${index}`;
+        const metadata = getParameterMetadata(key);
+        
         const delta: SignalKDelta = {
           context: 'vessels.self',
           updates: [{
@@ -714,7 +951,8 @@ export = function (app: SignalKApp): SignalKPlugin {
             timestamp: new Date().toISOString(),
             values: [{
               path,
-              value
+              value,
+              meta: metadata
             }]
           }]
         };
@@ -893,12 +1131,12 @@ export = function (app: SignalKApp): SignalKPlugin {
       state.lastForecastUpdate = Date.now();
       state.currentPosition = { ...position };
       
-      app.setProviderStatus(`Last updated: ${new Date().toLocaleString()}`);
+      app.setPluginStatus(`Last updated: ${new Date().toLocaleString()}`);
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       app.error(`Failed to fetch forecast: ${errorMsg}`);
-      app.setProviderStatus(`Error: ${errorMsg}`);
+      app.setPluginStatus(`Error: ${errorMsg}`);
     }
   };
 
@@ -1046,12 +1284,12 @@ export = function (app: SignalKApp): SignalKPlugin {
 
     if (!config.meteoblueApiKey) {
       app.error('Meteoblue API key is required');
-      app.setProviderStatus('Configuration error: API key required');
+      app.setPluginStatus('Configuration error: API key required');
       return;
     }
 
     app.debug('Starting Meteo plugin');
-    app.setProviderStatus('Initializing...');
+    app.setPluginStatus('Initializing...');
 
     // Publish initial engaged state
     const initialEngagedDelta: SignalKDelta = {
@@ -1075,9 +1313,9 @@ export = function (app: SignalKApp): SignalKPlugin {
         publishAccountInfo(accountInfo);
         checkApiLimits(accountInfo);
         app.debug(`API key validated. Usage: ${accountInfo.usagePercentage}% (${accountInfo.remainingRequests} requests remaining)`);
-        app.setProviderStatus(`Active - ${accountInfo.remainingRequests} API requests remaining`);
+        app.setPluginStatus(`Active - ${accountInfo.remainingRequests} API requests remaining`);
       } else {
-        app.setProviderStatus('Warning: Could not validate API key');
+        app.setPluginStatus('Warning: Could not validate API key');
       }
     }, 2000);
 
@@ -1172,7 +1410,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       }
     }, 5000); // Wait 5 seconds for position subscription to establish
 
-    app.setProviderStatus('Active');
+    app.setPluginStatus('Active');
   };
 
   plugin.stop = () => {
@@ -1201,7 +1439,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     state.accountInfo = null;
     state.movingForecastEngaged = false;
 
-    app.setProviderStatus('Stopped');
+    app.setPluginStatus('Stopped');
   };
 
   return plugin;
