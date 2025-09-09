@@ -689,7 +689,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     return packages;
   };
 
-  const buildMeteoblueUrl = (lat: number, lon: number, config: PluginConfig, maxHours?: number): string => {
+  const buildMeteoblueUrl = (lat: number, lon: number, config: PluginConfig, _maxHours?: number): string => {
     const packages = getEnabledPackages(config);
     
     if (packages.length === 0) {
@@ -704,14 +704,8 @@ export = function (app: SignalKApp): SignalKPlugin {
               `asl=${config.altitude}&` +
               `format=json`;
     
-    // Add time restrictions for efficient position-based calls
-    if (maxHours !== undefined) {
-      const now = new Date();
-      const endTime = new Date(now.getTime() + maxHours * 3600000);
-      url += `&timeformat=iso&` +
-             `starttime=${now.toISOString().split('.')[0]}&` +
-             `endtime=${endTime.toISOString().split('.')[0]}`;
-    }
+    // Note: starttime/endtime parameters don't work with Meteoblue Forecast API
+    // The API always returns data starting from midnight, so we handle time filtering client-side
     
     return url;
   };
@@ -806,24 +800,50 @@ export = function (app: SignalKApp): SignalKPlugin {
     }
     
     const now = new Date();
-    now.setMinutes(0, 0, 0);
-    const count = Math.min(data.time.length, maxHours);
+    const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
     const allowedFields = getHourlyPackageFields(packageType);
     
-    app.debug(`Processing ${count} hourly forecasts for ${packageType} package with fields: ${allowedFields.join(', ')}`);
+    // Find the starting index for the current or next hour
+    let startIndex = 0;
+    for (let i = 0; i < data.time.length; i++) {
+      const forecastTime = new Date(data.time[i]);
+      if (forecastTime >= currentHour) {
+        startIndex = i;
+        break;
+      }
+    }
+    
+    if (startIndex === 0 && data.time.length > 0) {
+      const firstForecastTime = new Date(data.time[0]);
+      if (firstForecastTime < currentHour) {
+        // All forecast times are in the past, find the closest future one
+        for (let i = 0; i < data.time.length; i++) {
+          const forecastTime = new Date(data.time[i]);
+          if (forecastTime > now) {
+            startIndex = i;
+            break;
+          }
+        }
+      }
+    }
+    
+    const count = Math.min(data.time.length - startIndex, maxHours);
+    
+    app.debug(`Processing ${count} hourly forecasts for ${packageType} package starting from index ${startIndex} (${data.time[startIndex]}) with fields: ${allowedFields.join(', ')}`);
 
     for (let i = 0; i < count; i++) {
-      const forecastTime = new Date(data.time[i]);
+      const dataIndex = startIndex + i;
+      const forecastTime = new Date(data.time[dataIndex]);
       const relativeHour = Math.round((forecastTime.getTime() - now.getTime()) / (1000 * 60 * 60));
 
       const forecast: any = {
-        timestamp: data.time[i],
+        timestamp: data.time[dataIndex],
         relativeHour
       };
 
       // Only extract fields that belong to this package
       allowedFields.forEach(field => {
-        const value = data[field]?.[i];
+        const value = data[field]?.[dataIndex];
         if (value !== undefined && value !== null) {
           // Apply unit conversions based on field names
           if (field.includes('temperature') || field === 'felttemperature') {
@@ -1073,8 +1093,13 @@ export = function (app: SignalKApp): SignalKPlugin {
     }
 
     try {
-      const url = buildMeteoblueUrl(position.latitude, position.longitude, config);
-      app.debug(`Fetching forecast from: ${url}`);
+      // Request extra hours to account for data starting from midnight
+      const now = new Date();
+      const hoursFromMidnight = now.getHours();
+      const totalHoursNeeded = hoursFromMidnight + config.maxForecastHours;
+      
+      const url = buildMeteoblueUrl(position.latitude, position.longitude, config, totalHoursNeeded);
+      app.debug(`Fetching forecast from: ${url} (requesting ${totalHoursNeeded} hours to account for ${hoursFromMidnight} hours since midnight)`);
 
       const response = await fetch(url);
       if (!response.ok) {
