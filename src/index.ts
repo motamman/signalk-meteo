@@ -910,26 +910,29 @@ export = function (app: SignalKApp): SignalKPlugin {
     
     // Publish individual parameters for each forecast hour (following SignalK pattern)
     forecasts.forEach((forecast, index) => {
+      const values: any[] = [];
+      const meta: any[] = [];
+      
       Object.entries(forecast).forEach(([key, value]) => {
         if (key === 'timestamp') return; // Skip timestamp as it's part of the delta
         
         const path = `environment.outside.meteo.forecast.hourly.${key}.${index}`;
         const metadata = getParameterMetadata(key);
         
-        const delta: SignalKDelta = {
-          context: 'vessels.self',
-          updates: [{
-            $source: sourceLabel,
-            timestamp: forecast.timestamp,
-            values: [{
-              path,
-              value,
-              meta: metadata
-            }]
-          }]
-        };
-        app.handleMessage(plugin.id, delta);
+        values.push({ path, value });
+        meta.push({ path, value: metadata });
       });
+      
+      const delta: SignalKDelta = {
+        context: 'vessels.self',
+        updates: [{
+          $source: sourceLabel,
+          timestamp: forecast.timestamp,
+          values,
+          meta
+        }]
+      };
+      app.handleMessage(plugin.id, delta);
     });
   };
 
@@ -938,26 +941,29 @@ export = function (app: SignalKApp): SignalKPlugin {
     
     // Publish individual parameters for each forecast day (following SignalK pattern)
     forecasts.forEach((forecast, index) => {
+      const values: any[] = [];
+      const meta: any[] = [];
+      
       Object.entries(forecast).forEach(([key, value]) => {
         if (key === 'date') return; // Skip date as it's handled separately
         
         const path = `environment.outside.meteo.forecast.daily.${key}.${index}`;
         const metadata = getParameterMetadata(key);
         
-        const delta: SignalKDelta = {
-          context: 'vessels.self',
-          updates: [{
-            $source: sourceLabel,
-            timestamp: new Date().toISOString(),
-            values: [{
-              path,
-              value,
-              meta: metadata
-            }]
-          }]
-        };
-        app.handleMessage(plugin.id, delta);
+        values.push({ path, value });
+        meta.push({ path, value: metadata });
       });
+      
+      const delta: SignalKDelta = {
+        context: 'vessels.self',
+        updates: [{
+          $source: sourceLabel,
+          timestamp: new Date().toISOString(),
+          values,
+          meta
+        }]
+      };
+      app.handleMessage(plugin.id, delta);
     });
   };
 

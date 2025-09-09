@@ -244,16 +244,21 @@ export interface SignalKUpdate {
   $source: string;
   timestamp: string;
   values: SignalKValue[];
+  meta?: SignalKMeta[];
+}
+
+export interface SignalKMeta {
+  path: string;
+  value: {
+    units?: string;
+    displayName: string;
+    description: string;
+  };
 }
 
 export interface SignalKValue {
   path: string;
   value: unknown;
-  meta?: {
-    units?: string;
-    displayName: string;
-    description: string;
-  };
 }
 
 // Subscription types
