@@ -1,4 +1,4 @@
-# SignalK Meteo Ingester 
+# SignalK Meteoblue Ingester 
 
 A SignalK plugin that provides intelligent weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on your vessel's position and, when moving, predicts weather conditions along your route by calculating future positions from your current heading and speed. All data is published to SignalK in standard units.
 
@@ -61,20 +61,20 @@ The plugin supports multiple Meteoblue forecast packages. **Basic**, **Wind**, a
 The plugin publishes weather data to the following SignalK paths:
 
 ### System Information
-- `environment.outside.meteo.system.metadata`: Forecast metadata including location and model run information
-- `environment.outside.meteo.system.account`: Account information and API usage statistics
+- `environment.outside.meteoblue.system.metadata`: Forecast metadata including location and model run information
+- `environment.outside.meteoblue.system.account`: Account information and API usage statistics
 
 ### Control Paths
-- `commands.meteo.engaged`: Boolean control for enabling/disabling moving vessel forecasts (PUT enabled)
+- `commands.meteoblue.engaged`: Boolean control for enabling/disabling moving vessel forecasts (PUT enabled)
 
 ### Notifications
-- `notifications.meteo.apiUsage`: API usage warnings and alerts (SignalK notification format)
+- `notifications.meteoblue.apiUsage`: API usage warnings and alerts (SignalK notification format)
 
 ### Hourly Forecasts
-- `environment.outside.meteo.forecast.hourly.{parameter}.{N}`: Individual parameters for each hour (N = 0 to maxHours-1)
+- `environment.outside.meteoblue.forecast.hourly.{parameter}.{N}`: Individual parameters for each hour (N = 0 to maxHours-1)
 
 ### Daily Forecasts
-- `environment.outside.meteo.forecast.daily.{parameter}.{N}`: Individual parameters for each day (N = 0 to maxDays-1)
+- `environment.outside.meteoblue.forecast.daily.{parameter}.{N}`: Individual parameters for each day (N = 0 to maxDays-1)
 
 ### Available Parameters by Package
 
@@ -170,25 +170,25 @@ The plugin provides two levels of control over moving vessel forecasts:
 - User must manually control via the runtime control (see below)
 - Provides full manual control over forecast mode
 
-### 2. Runtime Control: `commands.meteo.engaged`
-- **Location**: SignalK data path `vessels.self.commands.meteo.engaged`
+### 2. Runtime Control: `commands.meteoblue.engaged`
+- **Location**: SignalK data path `vessels.self.commands.meteoblue.engaged`
 - **Type**: Boolean (true/false)
 - **Purpose**: Manual override control for moving forecasts
 
 **Usage**:
 ```bash
 # Enable moving forecasts
-curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged \
+curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteoblue/engaged \
   -H "Content-Type: application/json" \
   -d '{"value": true}'
 
 # Disable moving forecasts (force stationary mode)
-curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged \
+curl -X PUT http://localhost:3000/signalk/v1/api/vessels/self/commands/meteoblue/engaged \
   -H "Content-Type: application/json" \
   -d '{"value": false}'
 
 # Check current state
-curl http://localhost:3000/signalk/v1/api/vessels/self/commands/meteo/engaged
+curl http://localhost:3000/signalk/v1/api/vessels/self/commands/meteoblue/engaged
 ```
 
 **Behavior**:
@@ -227,35 +227,35 @@ Each Meteoblue package publishes only the data fields relevant to that package t
 
 ### Package-Specific Source Data
 
-**`meteo-basic-api`** - Core weather data only:
+**`meteoblue-basic-api`** - Core weather data only:
 - Temperature, wind speed/direction, precipitation, weather codes
 - Pressure, humidity, UV index, precipitation probability
 - **Does NOT include**: wave data, wind gusts, marine conditions
 
-**`meteo-wind-api`** - Enhanced wind data only:
+**`meteoblue-wind-api`** - Enhanced wind data only:
 - Wind speed/direction, wind gusts, high-altitude wind (80m)
 - Air density, pressure data
 - **Does NOT include**: wave data or marine conditions
 
-**`meteo-sea-api`** - Marine and wave data only:
+**`meteoblue-sea-api`** - Marine and wave data only:
 - Wave heights (significant, wind waves, swell), wave periods, wave directions
 - Sea surface temperature, Douglas sea state, wave steepness  
 - Ocean currents (u/v components), salinity
 - **Does NOT include**: basic weather data, wind gusts, atmospheric conditions
 
-**`meteo-solar-api`** - Solar radiation data:
+**`meteoblue-solar-api`** - Solar radiation data:
 - UV index, sunshine duration, daylight information
 
-**`meteo-agro-api`** - Agricultural weather data:
+**`meteoblue-agro-api`** - Agricultural weather data:
 - Temperature ranges, humidity, precipitation, wind for farming
 
-**`meteo-trend-api`** - Weather trend analysis data
+**`meteoblue-trend-api`** - Weather trend analysis data
 
-**`meteo-clouds-api`** - Detailed cloud cover data
+**`meteoblue-clouds-api`** - Detailed cloud cover data
 
-**`meteo-metadata-api`** - Forecast metadata (location, model run info)
+**`meteoblue-metadata-api`** - Forecast metadata (location, model run info)
 
-**`meteo-account-api`** - API usage statistics and account information
+**`meteoblue-account-api`** - API usage statistics and account information
 
 ## Data Units
 
@@ -360,8 +360,8 @@ All weather data is automatically converted to [SignalK standard units](https://
 
 ### Data Paths
 All packages publish to the same SignalK paths but with different source identifiers:
-- Hourly: `environment.outside.meteo.forecast.hourly.{parameter}.{index}`
-- Daily: `environment.outside.meteo.forecast.daily.{parameter}.{index}`
+- Hourly: `environment.outside.meteoblue.forecast.hourly.{parameter}.{index}`
+- Daily: `environment.outside.meteoblue.forecast.daily.{parameter}.{index}`
 
 The source label indicates which Meteoblue package the data originated from, allowing consumers to choose data from specific packages or combine data from multiple sources as needed.
 
@@ -372,9 +372,9 @@ The source label indicates which Meteoblue package the data originated from, all
 2. **Forecasts not updating**: Verify the position subscription is working and the update interval isn't too long  
 3. **API errors**: Check your API key validity and usage limits
 4. **"Could not validate API key" warning**: Check your Meteoblue API key and internet connectivity
-5. **Usage notifications**: Monitor your API usage in `environment.outside.meteo.system.account` - notifications will appear at 80% and 90% usage
-6. **Moving forecasts not working**: Check that "Auto-Enable Moving Forecasts" is enabled in config, or manually enable via `commands.meteo.engaged`
-7. **Stuck in stationary mode**: Verify vessel has heading and SOG data, or check if moving forecasts are manually disabled via `commands.meteo.engaged`
+5. **Usage notifications**: Monitor your API usage in `environment.outside.meteoblue.system.account` - notifications will appear at 80% and 90% usage
+6. **Moving forecasts not working**: Check that "Auto-Enable Moving Forecasts" is enabled in config, or manually enable via `commands.meteoblue.engaged`
+7. **Stuck in stationary mode**: Verify vessel has heading and SOG data, or check if moving forecasts are manually disabled via `commands.meteoblue.engaged`
 
 ### Debug Information
 Enable debug logging in SignalK to see detailed plugin operation including:

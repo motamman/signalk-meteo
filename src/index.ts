@@ -17,7 +17,7 @@ import {
 export = function (app: SignalKApp): SignalKPlugin {
   const plugin: SignalKPlugin = {
     id: 'signalk-meteo',
-    name: 'SignalK Meteo Plugin',
+    name: 'SignalK Meteoblue Ingester',
     description: 'Position-based weather forecast data from Meteoblue API',
     schema: {},
     start: () => {},
@@ -166,7 +166,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       enableAutoMovingForecast: {
         type: 'boolean',
         title: 'Auto-Enable Moving Forecasts',
-        description: 'Automatically enable moving vessel forecasts when speed exceeds the moving speed threshold. When disabled, moving forecasts must be manually enabled via commands.meteo.engaged',
+        description: 'Automatically enable moving vessel forecasts when speed exceeds the moving speed threshold. When disabled, moving forecasts must be manually enabled via commands.meteoblue.engaged',
         default: true
       },
       movingSpeedThreshold: {
@@ -257,7 +257,7 @@ export = function (app: SignalKApp): SignalKPlugin {
   };
 
   const getSourceLabel = (packageType: string): string => {
-    return `meteo-${packageType}-api`;
+    return `meteoblue-${packageType}-api`;
   };
 
   // Metadata utilities for SignalK compliance
@@ -584,7 +584,7 @@ export = function (app: SignalKApp): SignalKPlugin {
 
   const publishAccountInfo = (accountInfo: ProcessedAccountInfo): void => {
     const sourceLabel = getSourceLabel('account');
-    const path = 'environment.outside.meteo.system.account';
+    const path = 'environment.outside.meteoblue.system.account';
     
     const delta: SignalKDelta = {
       context: 'vessels.self',
@@ -605,7 +605,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     const usagePercentage = accountInfo.usagePercentage;
     
     // Clear any existing notifications first
-    const notificationPath = 'notifications.meteo.apiUsage';
+    const notificationPath = 'notifications.meteoblue.apiUsage';
     
     if (usagePercentage >= 90) {
       // Critical warning at 90%+
@@ -987,7 +987,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       Object.entries(forecast).forEach(([key, value]) => {
         if (key === 'timestamp') return; // Skip timestamp as it's part of the delta
         
-        const path = `environment.outside.meteo.forecast.hourly.${key}.${index}`;
+        const path = `environment.outside.meteoblue.forecast.hourly.${key}.${index}`;
         const metadata = getParameterMetadata(key);
         
         values.push({ path, value });
@@ -1018,7 +1018,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       Object.entries(forecast).forEach(([key, value]) => {
         if (key === 'date') return; // Skip date as it's handled separately
         
-        const path = `environment.outside.meteo.forecast.daily.${key}.${index}`;
+        const path = `environment.outside.meteoblue.forecast.daily.${key}.${index}`;
         const metadata = getParameterMetadata(key);
         
         values.push({ path, value });
@@ -1185,7 +1185,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       if (data.data_day) app.debug(`Daily data available with ${data.data_day.time?.length || 0} time periods`);
 
       // Publish metadata
-      const metadataPath = 'environment.outside.meteo.system.metadata';
+      const metadataPath = 'environment.outside.meteoblue.system.metadata';
       const metadataSource = getSourceLabel('metadata');
       const metadataDelta: SignalKDelta = {
         context: 'vessels.self',
@@ -1305,7 +1305,7 @@ export = function (app: SignalKApp): SignalKPlugin {
                     $source: getSourceLabel('control'),
                     timestamp: new Date().toISOString(),
                     values: [{
-                      path: 'commands.meteo.engaged',
+                      path: 'commands.meteoblue.engaged',
                       value: state.movingForecastEngaged
                     }]
                   }]
@@ -1390,7 +1390,7 @@ export = function (app: SignalKApp): SignalKPlugin {
       return;
     }
 
-    app.debug('Starting Meteo plugin');
+    app.debug('Starting Meteoblue plugin');
     app.setPluginStatus('Initializing...');
 
     // Publish initial engaged state
@@ -1427,7 +1427,7 @@ export = function (app: SignalKApp): SignalKPlugin {
     // Register PUT handler for moving forecast engaged control
     app.registerPutHandler(
       'vessels.self',
-      'commands.meteo.engaged',
+      'commands.meteoblue.engaged',
       (_context: string, path: string, value: unknown, callback?: (result: { state: string; statusCode?: number }) => void) => {
         app.debug(`Received PUT request for ${path}: ${value}`);
         
@@ -1442,7 +1442,7 @@ export = function (app: SignalKApp): SignalKPlugin {
               $source: getSourceLabel('control'),
               timestamp: new Date().toISOString(),
               values: [{
-                path: 'commands.meteo.engaged',
+                path: 'commands.meteoblue.engaged',
                 value: state.movingForecastEngaged
               }]
             }]
@@ -1516,7 +1516,7 @@ export = function (app: SignalKApp): SignalKPlugin {
   };
 
   plugin.stop = () => {
-    app.debug('Stopping Meteo plugin');
+    app.debug('Stopping Meteoblue plugin');
 
     // Clear intervals
     if (state.forecastInterval) {
