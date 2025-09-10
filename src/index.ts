@@ -1400,7 +1400,7 @@ export = function (app: SignalKApp): SignalKPlugin {
         $source: getSourceLabel('control'),
         timestamp: new Date().toISOString(),
         values: [{
-          path: 'commands.meteo.engaged',
+          path: 'commands.meteoblue.engaged',
           value: state.movingForecastEngaged
         }]
       }]

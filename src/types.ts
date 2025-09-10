@@ -98,7 +98,7 @@ export interface MeteoblueResponse {
   metadata: MeteoblueMetadata;
   units: MeteoblueUnits;
   data_1h?: MeteoblueHourlyData;
-  data_day?: MeteoolueDailyData;
+  data_day?: MeteoblueDailyData;
 }
 
 export interface MeteoblueMetadata {
@@ -172,7 +172,7 @@ export interface MeteoblueHourlyData {
   felttemperature: number[];
 }
 
-export interface MeteoolueDailyData {
+export interface MeteoblueDailyData {
   time: string[];
   temperature_max: number[];
   temperature_min: number[];
