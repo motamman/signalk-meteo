@@ -24,7 +24,7 @@
     "signalk-node-server-plugin",
     "signalk-category-weather",
     "signalk-category-instruments",
-    "signalk-meteo",
+    "signalk-meteoblue",
     "meteoblue",
     "weather",
     "forecast",
