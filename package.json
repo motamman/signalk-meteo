@@ -31,7 +31,8 @@
     "signalk",
     "typescript",
     "position-based",
-    "marine weather"
+    "marine weather",
+    "nautical weather"
   ],
   "author": "Maurice Tamman",
   "license": "MIT",
