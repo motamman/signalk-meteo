@@ -1555,6 +1555,9 @@ export = function (app: SignalKApp): SignalKPlugin {
       const errorMsg = error instanceof Error ? error.message : String(error);
       app.error(`Failed to fetch forecast: ${errorMsg}`);
       app.setPluginStatus(`Error: ${errorMsg}`);
+
+      // IMPORTANT: Update lastForecastUpdate even on failure to prevent endless retries
+      state.lastForecastUpdate = Date.now();
     }
   };
 
@@ -1709,8 +1712,9 @@ export = function (app: SignalKApp): SignalKPlugin {
               }
             }
           } else {
+            // This is normal - SOG/heading updates don't contain position data
             app.debug(
-              "Position update received but no valid position data found",
+              `Navigation update processed (non-position data)`,
             );
           }
         } catch (error) {
@@ -1766,25 +1770,40 @@ export = function (app: SignalKApp): SignalKPlugin {
           const maxCount = options?.maxCount || 5;
           const forecasts: WeatherData[] = [];
 
-          // TODO: Implement proper lookup from stored forecast data
-          // For now, generate mock forecast data
-          for (let i = 0; i < maxCount; i++) {
-            const mockData = {
-              timestamp: new Date(
-                Date.now() + i * (type === "daily" ? 86400000 : 3600000),
-              ).toISOString(),
-              temperature: 293.15 + Math.random() * 10, // Random temp variation
-              sealevelpressure: 101325 + Math.random() * 2000,
-              relativehumidity: 0.6 + Math.random() * 0.3,
-              windspeed: 3.0 + Math.random() * 10.0,
-              winddirection: Math.random() * 2 * Math.PI,
-              significantwaveheight: Math.random() * 3.0,
-              mean_waveperiod: 6 + Math.random() * 8,
-            };
-
-            const weatherData = convertToWeatherAPIForecast(mockData, type);
-            forecasts.push(weatherData);
+          // Check if forecast type is enabled in configuration
+          if (!state.currentConfig) {
+            app.debug("No configuration available for forecast check");
+            return forecasts;
           }
+
+          const config = state.currentConfig;
+          let hasEnabledPackages = false;
+
+          if (type === "daily") {
+            // Check if any daily packages are enabled
+            hasEnabledPackages = config.enableBasicDay ||
+                               config.enableWindDay ||
+                               config.enableSeaDay ||
+                               config.enableSolarDay ||
+                               config.enableCloudsDay;
+          } else if (type === "point") {
+            // Check if any hourly packages are enabled
+            hasEnabledPackages = config.enableBasic1h ||
+                               config.enableWind1h ||
+                               config.enableSea1h ||
+                               config.enableSolar1h ||
+                               config.enableClouds1h ||
+                               config.enableTrend1h;
+          }
+
+          if (!hasEnabledPackages) {
+            app.debug(`No ${type} forecast packages enabled, returning empty array`);
+            return forecasts;
+          }
+
+          app.debug(`${type} forecast packages are enabled, but no actual forecast data implementation yet`);
+          // TODO: Implement proper lookup from stored forecast data in SignalK tree
+          // For now, return empty array until real data lookup is implemented
 
           return forecasts;
         } catch (error) {
