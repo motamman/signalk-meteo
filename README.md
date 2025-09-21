@@ -6,7 +6,7 @@ A SignalK plugin that provides intelligent weather forecast data using the Meteo
 
 - **Position-based forecasts**: Automatically updates forecasts when the vessel moves significantly
 - **Vessel movement prediction**: When moving (SOG > 1 knot), forecasts predict weather along the vessel's route based on current heading and speed
-- **Multiple forecast packages**: Selectable Meteoblue packages (Basic, Wind, Sea, Solar, Agro, Trend, Clouds)
+- **Multiple forecast packages**: Selectable Meteoblue packages (Basic, Wind, Sea, Solar, Trend, Clouds)
 - **Hourly forecasts**: Up to 7 days (168 hours) of hourly weather data
 - **Daily forecasts**: Up to 14 days of daily weather summaries
 - **Comprehensive data**: Temperature, wind, precipitation, pressure, humidity, visibility, UV index, wave data, and more
@@ -52,7 +52,6 @@ The plugin supports multiple Meteoblue forecast packages. **Basic**, **Wind**, a
 - **Wind 1h/Day**: Detailed wind data (gusts, direction variations) - **Default: 1h ON, Day OFF**
 - **Sea 1h/Day**: Marine conditions (wave height, sea temperature) - **Default: 1h ON, Day OFF**
 - **Solar 1h/Day**: Solar radiation and UV data - **Default: OFF**
-- **Agro 1h/Day**: Agricultural weather data - **Default: OFF**
 - **Trend 1h**: Weather trend analysis - **Default: OFF**
 - **Clouds 1h/Day**: Detailed cloud cover data - **Default: OFF**
 
@@ -215,7 +214,6 @@ The plugin uses the Meteoblue API with configurable packages:
 - **Wind packages**: `wind-1h`, `wind-day` - Enhanced wind data
 - **Sea packages**: `sea-1h`, `sea-day` - Marine conditions
 - **Solar packages**: `solar-1h`, `solar-day` - Solar radiation data
-- **Agricultural packages**: `agro-1h`, `agro-day` - Agricultural weather data
 - **Trend packages**: `trend-1h` - Weather trend analysis
 - **Cloud packages**: `clouds-1h`, `clouds-day` - Detailed cloud data
 
@@ -246,8 +244,6 @@ Each Meteoblue package publishes only the data fields relevant to that package t
 **`meteoblue-solar-api`** - Solar radiation data:
 - UV index, sunshine duration, daylight information
 
-**`meteoblue-agro-api`** - Agricultural weather data:
-- Temperature ranges, humidity, precipitation, wind for farming
 
 **`meteoblue-trend-api`** - Weather trend analysis data
 

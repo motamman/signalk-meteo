@@ -3,7 +3,10 @@ export interface SignalKApp {
   debug: (msg: string) => void;
   error: (msg: string) => void;
   handleMessage: (pluginId: string, delta: SignalKDelta) => void;
-  savePluginOptions: (options: Record<string, unknown>, callback: (err?: unknown) => void) => void;
+  savePluginOptions: (
+    options: Record<string, unknown>,
+    callback: (err?: unknown) => void,
+  ) => void;
   setProviderStatus: (msg: string) => void;
   setPluginStatus: (msg: string) => void;
   getDataDirPath: () => string;
@@ -12,7 +15,7 @@ export interface SignalKApp {
       subscription: SubscriptionRequest,
       unsubscribes: Array<() => void>,
       subscriptionError: (err: unknown) => void,
-      dataCallback: (delta: SignalKDelta) => void
+      dataCallback: (delta: SignalKDelta) => void,
     ) => void;
   };
   registerPutHandler: (
@@ -22,9 +25,9 @@ export interface SignalKApp {
       context: string,
       path: string,
       value: unknown,
-      callback?: (result: { state: string; statusCode?: number }) => void
+      callback?: (result: { state: string; statusCode?: number }) => void,
     ) => { state: string; statusCode?: number },
-    source?: string
+    source?: string,
   ) => void;
 }
 
@@ -55,8 +58,6 @@ export interface PluginConfig {
   enableSeaDay: boolean;
   enableSolar1h: boolean;
   enableSolarDay: boolean;
-  enableAgro1h: boolean;
-  enableAgroDay: boolean;
   enableTrend1h: boolean;
   enableClouds1h: boolean;
   enableCloudsDay: boolean;
