@@ -1,5 +1,5 @@
 {
-  "name": "signalk-meteo",
+  "name": "signalk-meteoblue",
   "version": "0.5.0-beta.2",
   "description": "SignalK plugin for position-based weather forecast data from Meteoblue API",
   "main": "dist/index.js",
@@ -56,7 +56,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/motamman/signalk-meteo.git"
+    "url": "https://github.com/motamman/signalk-meteoblue.git"
   },
   "signalk": {
     "appSupport": "none",
