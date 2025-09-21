@@ -29,6 +29,7 @@ export interface SignalKApp {
     ) => { state: string; statusCode?: number },
     source?: string,
   ) => void;
+  registerWeatherProvider: (provider: WeatherProvider) => void;
 }
 
 export interface SignalKPlugin {
@@ -311,3 +312,101 @@ export interface ProcessedAccountInfo {
   status: string;
   lastChecked: string;
 }
+
+// Weather API types
+export interface WeatherProvider {
+  name: string;
+  methods: WeatherProviderMethods;
+}
+
+export interface WeatherProviderMethods {
+  pluginId?: string;
+  getObservations: (
+    position: Position,
+    options?: WeatherReqParams,
+  ) => Promise<WeatherData[]>;
+  getForecasts: (
+    position: Position,
+    type: WeatherForecastType,
+    options?: WeatherReqParams,
+  ) => Promise<WeatherData[]>;
+  getWarnings: (position: Position) => Promise<WeatherWarning[]>;
+}
+
+export interface WeatherReqParams {
+  maxCount?: number;
+  startDate?: string;
+}
+
+export type WeatherForecastType = "daily" | "point";
+export type WeatherDataType = WeatherForecastType | "observation";
+
+export interface WeatherData {
+  description?: string;
+  date: string;
+  type: WeatherDataType;
+  outside?: {
+    minTemperature?: number;
+    maxTemperature?: number;
+    feelsLikeTemperature?: number;
+    precipitationVolume?: number;
+    absoluteHumidity?: number;
+    horizontalVisibility?: number;
+    uvIndex?: number;
+    cloudCover?: number;
+    temperature?: number;
+    dewPointTemperature?: number;
+    pressure?: number;
+    pressureTendency?: TendencyKind;
+    relativeHumidity?: number;
+    precipitationType?: PrecipitationKind;
+  };
+  water?: {
+    temperature?: number;
+    level?: number;
+    levelTendency?: TendencyKind;
+    surfaceCurrentSpeed?: number;
+    surfaceCurrentDirection?: number;
+    salinity?: number;
+    waveSignificantHeight?: number;
+    wavePeriod?: number;
+    waveDirection?: number;
+    swellHeight?: number;
+    swellPeriod?: number;
+    swellDirection?: number;
+  };
+  wind?: {
+    speedTrue?: number;
+    directionTrue?: number;
+    gust?: number;
+    gustDirection?: number;
+  };
+  sun?: {
+    sunrise?: string;
+    sunset?: string;
+  };
+}
+
+export interface WeatherWarning {
+  startTime: string;
+  endTime: string;
+  details: string;
+  source: string;
+  type: string;
+}
+
+export type TendencyKind =
+  | "steady"
+  | "decreasing"
+  | "increasing"
+  | "not available";
+
+export type PrecipitationKind =
+  | "reserved"
+  | "rain"
+  | "thunderstorm"
+  | "freezing rain"
+  | "mixed/ice"
+  | "snow"
+  | "reserved"
+  | "not available";

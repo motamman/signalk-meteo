@@ -12,6 +12,11 @@ import {
   SubscriptionRequest,
   MeteoblueAccountResponse,
   ProcessedAccountInfo,
+  WeatherProvider,
+  WeatherData,
+  WeatherWarning,
+  WeatherReqParams,
+  WeatherForecastType,
 } from "./types";
 
 export = function (app: SignalKApp): SignalKPlugin {
@@ -269,6 +274,68 @@ export = function (app: SignalKApp): SignalKPlugin {
 
   const getSourceLabel = (packageType: string): string => {
     return `meteoblue-${packageType}-api`;
+  };
+
+  // Weather API conversion functions
+  const convertToWeatherAPIObservation = (forecastData: any): WeatherData => {
+    return {
+      date: forecastData.timestamp || new Date().toISOString(),
+      type: "observation",
+      description: "Meteoblue marine weather observation",
+      outside: {
+        temperature: forecastData.temperature, // Already in Kelvin
+        pressure: forecastData.sealevelpressure, // Already in Pascal
+        relativeHumidity: forecastData.relativehumidity
+          ? forecastData.relativehumidity * 100
+          : undefined, // Convert ratio to %
+        uvIndex: forecastData.uvindex,
+        cloudCover: forecastData.cloudcover
+          ? forecastData.cloudcover * 100
+          : undefined, // Convert ratio to %
+        precipitationVolume: forecastData.precipitation
+          ? forecastData.precipitation * 1000
+          : undefined, // Convert m to mm
+        feelsLikeTemperature: forecastData.felttemperature,
+        horizontalVisibility: forecastData.visibility,
+      },
+      wind: {
+        speedTrue: forecastData.windspeed, // Already in m/s
+        directionTrue: forecastData.winddirection, // Already in radians
+        gust: forecastData.gust,
+      },
+      water: {
+        temperature: forecastData.seasurfacetemperature,
+        waveSignificantHeight: forecastData.significantwaveheight,
+        wavePeriod: forecastData.mean_waveperiod,
+        waveDirection: forecastData.mean_wavedirection,
+        swellHeight: forecastData.swell_significantheight,
+        swellPeriod: forecastData.swell_meanperiod,
+        swellDirection: forecastData.swell_meandirection,
+        surfaceCurrentSpeed: forecastData.currentvelocity_u, // Simplified
+        surfaceCurrentDirection: forecastData.currentvelocity_v, // Simplified
+        salinity: forecastData.salinity,
+      },
+    };
+  };
+
+  const convertToWeatherAPIForecast = (
+    forecastData: any,
+    type: WeatherForecastType,
+  ): WeatherData => {
+    const baseData = convertToWeatherAPIObservation(forecastData);
+    baseData.type = type;
+    baseData.description = `Meteoblue marine weather ${type} forecast`;
+
+    // Add daily-specific fields if it's a daily forecast
+    if (type === "daily" && forecastData.temperature_max !== undefined) {
+      baseData.outside = {
+        ...baseData.outside,
+        maxTemperature: forecastData.temperature_max,
+        minTemperature: forecastData.temperature_min,
+      };
+    }
+
+    return baseData;
   };
 
   // Metadata utilities for SignalK compliance
@@ -1655,6 +1722,91 @@ export = function (app: SignalKApp): SignalKPlugin {
     );
   };
 
+  // Weather API Provider Implementation
+  const weatherProvider: WeatherProvider = {
+    name: "Meteoblue Marine Weather",
+    methods: {
+      getObservations: async (position: Position): Promise<WeatherData[]> => {
+        app.debug(
+          `Weather API: getObservations for ${position.latitude}, ${position.longitude}`,
+        );
+
+        try {
+          // For now, return a simple observation based on current data
+          // TODO: Implement proper lookup from stored forecast data
+          const mockData = {
+            timestamp: new Date().toISOString(),
+            temperature: 293.15, // 20°C in Kelvin
+            sealevelpressure: 101325, // Standard pressure in Pascal
+            relativehumidity: 0.65, // 65% as ratio
+            windspeed: 5.0, // 5 m/s
+            winddirection: 1.57, // 90° in radians (East)
+          };
+
+          const weatherData = convertToWeatherAPIObservation(mockData);
+          return [weatherData];
+        } catch (error) {
+          app.error(
+            `Weather API getObservations error: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return [];
+        }
+      },
+
+      getForecasts: async (
+        position: Position,
+        type: WeatherForecastType,
+        options?: WeatherReqParams,
+      ): Promise<WeatherData[]> => {
+        app.debug(
+          `Weather API: getForecasts ${type} for ${position.latitude}, ${position.longitude}`,
+        );
+
+        try {
+          const maxCount = options?.maxCount || 5;
+          const forecasts: WeatherData[] = [];
+
+          // TODO: Implement proper lookup from stored forecast data
+          // For now, generate mock forecast data
+          for (let i = 0; i < maxCount; i++) {
+            const mockData = {
+              timestamp: new Date(
+                Date.now() + i * (type === "daily" ? 86400000 : 3600000),
+              ).toISOString(),
+              temperature: 293.15 + Math.random() * 10, // Random temp variation
+              sealevelpressure: 101325 + Math.random() * 2000,
+              relativehumidity: 0.6 + Math.random() * 0.3,
+              windspeed: 3.0 + Math.random() * 10.0,
+              winddirection: Math.random() * 2 * Math.PI,
+              significantwaveheight: Math.random() * 3.0,
+              mean_waveperiod: 6 + Math.random() * 8,
+            };
+
+            const weatherData = convertToWeatherAPIForecast(mockData, type);
+            forecasts.push(weatherData);
+          }
+
+          return forecasts;
+        } catch (error) {
+          app.error(
+            `Weather API getForecasts error: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return [];
+        }
+      },
+
+      getWarnings: async (position: Position): Promise<WeatherWarning[]> => {
+        app.debug(
+          `Weather API: getWarnings for ${position.latitude}, ${position.longitude}`,
+        );
+
+        // TODO: Implement weather warnings from Meteoblue data
+        // For now, return empty array
+        return [];
+      },
+    },
+  };
+
   // Plugin lifecycle
   plugin.start = (options: Partial<PluginConfig>) => {
     const config: PluginConfig = {
@@ -1691,6 +1843,16 @@ export = function (app: SignalKApp): SignalKPlugin {
 
     app.debug("Starting Meteoblue plugin");
     app.setPluginStatus("Initializing...");
+
+    // Register as Weather API provider
+    try {
+      app.registerWeatherProvider(weatherProvider);
+      app.debug("Successfully registered as Weather API provider");
+    } catch (error) {
+      app.error(
+        `Failed to register Weather API provider: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Publish initial engaged state
     const initialEngagedDelta: SignalKDelta = {

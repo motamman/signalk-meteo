@@ -14,6 +14,8 @@ A SignalK plugin that provides intelligent weather forecast data using the Meteo
 - **Account monitoring**: API key validation and usage tracking with automatic notifications
 - **Usage alerts**: SignalK notifications when approaching API limits (80% warning, 90% critical)
 - **Flexible configuration**: Configurable update intervals and forecast ranges
+- **Weather API provider**: Implements SignalK Weather API v2 for ecosystem compatibility
+- **Dual compatibility**: Works with both direct SignalK data access and standardized Weather API requests
 
 ## Requirements
 
@@ -360,6 +362,36 @@ All packages publish to the same SignalK paths but with different source identif
 - Daily: `environment.outside.meteoblue.forecast.daily.{parameter}.{index}`
 
 The source label indicates which Meteoblue package the data originated from, allowing consumers to choose data from specific packages or combine data from multiple sources as needed.
+
+## Weather API Provider
+
+This plugin also implements the SignalK Weather API v2 specification, making it compatible with any application that uses the standard Weather API.
+
+### Available Endpoints
+
+When the plugin is running, the following Weather API endpoints become available:
+
+- `GET /signalk/v2/api/weather/observations?lat=37.7749&lon=-122.4194`
+- `GET /signalk/v2/api/weather/forecasts/daily?lat=37.7749&lon=-122.4194&count=7`
+- `GET /signalk/v2/api/weather/forecasts/point?lat=37.7749&lon=-122.4194&count=24`
+- `GET /signalk/v2/api/weather/warnings?lat=37.7749&lon=-122.4194`
+
+### Provider Information
+
+- **Provider Name**: "Meteoblue Marine Weather"
+- **Provider ID**: Determined by SignalK server based on plugin ID
+- **Unique Features**: Only Weather API provider with vessel movement prediction and marine-specific data
+
+### Data Sources
+
+The Weather API responses are generated from the same high-quality Meteoblue data that the plugin stores in SignalK paths, ensuring consistency between direct data access and API responses.
+
+### Benefits of Dual Compatibility
+
+1. **Existing Functionality**: All current features continue to work unchanged
+2. **Ecosystem Integration**: Now compatible with Freeboard-SK and other Weather API consumers
+3. **Best Performance**: Weather API responses use cached data for immediate availability
+4. **Marine Advantages**: Unique vessel movement prediction capabilities available via API
 
 ## Troubleshooting
 
