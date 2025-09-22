@@ -10,6 +10,7 @@ export interface SignalKApp {
   setProviderStatus: (msg: string) => void;
   setPluginStatus: (msg: string) => void;
   getDataDirPath: () => string;
+  getSelfPath: (path: string) => any;
   subscriptionmanager: {
     subscribe: (
       subscription: SubscriptionRequest,
@@ -378,6 +379,7 @@ export interface WeatherData {
     cloudBaseHeight?: number;
     cloudTopHeight?: number;
     horizontalVisibilityOverRange?: boolean;
+    precipitationProbability?: number;
   };
   water?: {
     temperature?: number;
