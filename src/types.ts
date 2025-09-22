@@ -345,6 +345,10 @@ export interface WeatherData {
   description?: string;
   date: string;
   type: WeatherDataType;
+  current?: {
+    drift?: number;
+    set?: number;
+  };
   outside?: {
     minTemperature?: number;
     maxTemperature?: number;
@@ -360,6 +364,20 @@ export interface WeatherData {
     pressureTendency?: TendencyKind;
     relativeHumidity?: number;
     precipitationType?: PrecipitationKind;
+    // Solar radiation fields
+    solarRadiation?: number;
+    directNormalIrradiance?: number;
+    diffuseHorizontalIrradiance?: number;
+    globalHorizontalIrradiance?: number;
+    extraterrestrialSolarRadiation?: number;
+    // Enhanced cloud data
+    totalCloudCover?: number;
+    lowCloudCover?: number;
+    midCloudCover?: number;
+    highCloudCover?: number;
+    cloudBaseHeight?: number;
+    cloudTopHeight?: number;
+    horizontalVisibilityOverRange?: boolean;
   };
   water?: {
     temperature?: number;
@@ -374,16 +392,30 @@ export interface WeatherData {
     swellHeight?: number;
     swellPeriod?: number;
     swellDirection?: number;
+    // Enhanced marine data
+    seaState?: number;
+    surfaceWaveHeight?: number;
+    windWaveHeight?: number;
+    windWavePeriod?: number;
+    windWaveDirection?: number;
+    swellPeakPeriod?: number;
+    windWavePeakPeriod?: number;
+    waveSteepness?: number;
+    ice?: boolean;
   };
   wind?: {
     speedTrue?: number;
     directionTrue?: number;
     gust?: number;
     gustDirection?: number;
+    averageSpeed?: number;
+    gustDirectionTrue?: number;
   };
   sun?: {
     sunrise?: string;
     sunset?: string;
+    sunshineDuration?: number;
+    isDaylight?: boolean;
   };
 }
 

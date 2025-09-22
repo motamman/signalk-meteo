@@ -21,7 +21,7 @@ import {
 
 export = function (app: SignalKApp): SignalKPlugin {
   const plugin: SignalKPlugin = {
-    id: "signalk-meteo",
+    id: "signalk-meteoblue",
     name: "SignalK Meteoblue Ingester",
     description: "Position-based weather forecast data from Meteoblue API",
     schema: {},
@@ -297,11 +297,43 @@ export = function (app: SignalKApp): SignalKPlugin {
           : undefined, // Convert m to mm
         feelsLikeTemperature: forecastData.felttemperature,
         horizontalVisibility: forecastData.visibility,
+        dewPointTemperature: forecastData.dewpoint || forecastData.dewpointtemperature,
+        pressureTendency: forecastData.pressure_trend || forecastData.sealevelpressure_trend
+          ? (forecastData.pressure_trend || forecastData.sealevelpressure_trend) > 0
+            ? "increasing"
+            : (forecastData.pressure_trend || forecastData.sealevelpressure_trend) < 0
+            ? "decreasing"
+            : "steady"
+          : undefined,
+        // Solar radiation fields
+        solarRadiation: forecastData.solarradiation,
+        directNormalIrradiance: forecastData.irradiance_direct_normal,
+        diffuseHorizontalIrradiance: forecastData.irradiance_diffuse_horizontal,
+        globalHorizontalIrradiance: forecastData.irradiance_global_horizontal,
+        extraterrestrialSolarRadiation: forecastData.extraterrestrial_solar_radiation,
+        // Enhanced cloud data
+        totalCloudCover: forecastData.total_cloud_cover
+          ? forecastData.total_cloud_cover * 100
+          : undefined,
+        lowCloudCover: forecastData.low_cloud_cover
+          ? forecastData.low_cloud_cover * 100
+          : undefined,
+        midCloudCover: forecastData.mid_cloud_cover
+          ? forecastData.mid_cloud_cover * 100
+          : undefined,
+        highCloudCover: forecastData.high_cloud_cover
+          ? forecastData.high_cloud_cover * 100
+          : undefined,
+        cloudBaseHeight: forecastData.cloud_base_height,
+        cloudTopHeight: forecastData.cloud_top_height,
       },
       wind: {
         speedTrue: forecastData.windspeed, // Already in m/s
         directionTrue: forecastData.winddirection, // Already in radians
         gust: forecastData.gust,
+        // Enhanced wind data
+        averageSpeed: forecastData.windspeed, // Same as speedTrue for compatibility
+        gustDirectionTrue: forecastData.gustdirection,
       },
       water: {
         temperature: forecastData.seasurfacetemperature,
@@ -311,9 +343,36 @@ export = function (app: SignalKApp): SignalKPlugin {
         swellHeight: forecastData.swell_significantheight,
         swellPeriod: forecastData.swell_meanperiod,
         swellDirection: forecastData.swell_meandirection,
-        surfaceCurrentSpeed: forecastData.currentvelocity_u, // Simplified
-        surfaceCurrentDirection: forecastData.currentvelocity_v, // Simplified
+        surfaceCurrentSpeed: Math.sqrt(
+          (forecastData.currentvelocity_u || 0) ** 2 +
+          (forecastData.currentvelocity_v || 0) ** 2
+        ), // Calculate magnitude from u,v components
+        surfaceCurrentDirection: forecastData.currentvelocity_u && forecastData.currentvelocity_v
+          ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
+          : undefined, // Calculate direction from u,v components
         salinity: forecastData.salinity,
+        // Enhanced marine data
+        seaState: forecastData.douglas_seastate,
+        surfaceWaveHeight: forecastData.surfwave_height,
+        windWaveHeight: forecastData.windwave_height,
+        windWavePeriod: forecastData.windwave_meanperiod,
+        windWaveDirection: forecastData.windwave_direction,
+        swellPeakPeriod: forecastData.swell_peakwaveperiod,
+        windWavePeakPeriod: forecastData.windwave_peakwaveperiod,
+        waveSteepness: forecastData.wavesteepness,
+      },
+      sun: {
+        sunshineDuration: forecastData.sunshine_duration,
+        isDaylight: forecastData.isdaylight,
+      },
+      current: {
+        drift: Math.sqrt(
+          (forecastData.currentvelocity_u || 0) ** 2 +
+          (forecastData.currentvelocity_v || 0) ** 2
+        ), // Surface current speed
+        set: forecastData.currentvelocity_u && forecastData.currentvelocity_v
+          ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
+          : undefined, // Surface current direction
       },
     };
   };
@@ -891,6 +950,9 @@ export = function (app: SignalKApp): SignalKPlugin {
         "rainspot",
         "convective_precipitation",
         "snowfraction",
+        "visibility",
+        "dewpoint",
+        "dewpointtemperature",
       ],
       wind: [
         "windspeed",
@@ -922,14 +984,34 @@ export = function (app: SignalKApp): SignalKPlugin {
         "currentvelocity_v",
         "salinity",
       ],
-      solar: ["uvindex", "sunshine_duration", "isdaylight"],
-      trend: ["temperature", "precipitation", "windspeed", "winddirection"],
+      solar: [
+        "uvindex",
+        "sunshine_duration",
+        "isdaylight",
+        "solarradiation",
+        "extraterrestrial_solar_radiation",
+        "irradiance_direct_normal",
+        "irradiance_diffuse_horizontal",
+        "irradiance_global_horizontal",
+      ],
+      trend: [
+        "temperature",
+        "precipitation",
+        "windspeed",
+        "winddirection",
+        "pressure_trend",
+        "temperature_trend",
+        "windspeed_trend",
+        "sealevelpressure_trend",
+      ],
       clouds: [
         "cloudcover",
         "total_cloud_cover",
         "low_cloud_cover",
         "mid_cloud_cover",
         "high_cloud_cover",
+        "cloud_base_height",
+        "cloud_top_height",
       ],
     };
 
@@ -963,6 +1045,10 @@ export = function (app: SignalKApp): SignalKPlugin {
         "precipitation_hours",
         "snowfraction",
         "rainspot",
+        "visibility_mean",
+        "dewpoint_max",
+        "dewpoint_min",
+        "dewpoint_mean",
       ],
       wind: [
         "windspeed_max",
@@ -978,7 +1064,15 @@ export = function (app: SignalKApp): SignalKPlugin {
         "temperature_max",
         "temperature_min", // Sea surface temperature if available
       ],
-      solar: ["uvindex", "sunshine_duration"],
+      solar: [
+        "uvindex",
+        "sunshine_duration",
+        "solarradiation_max",
+        "solarradiation_mean",
+        "irradiance_direct_normal_max",
+        "irradiance_diffuse_horizontal_max",
+        "irradiance_global_horizontal_max",
+      ],
       trend: [
         "temperature_max",
         "temperature_min",
@@ -987,7 +1081,15 @@ export = function (app: SignalKApp): SignalKPlugin {
         "winddirection",
       ],
       clouds: [
-        // Daily cloud data if available in daily packages
+        "cloudcover_max",
+        "cloudcover_min",
+        "cloudcover_mean",
+        "total_cloud_cover_max",
+        "total_cloud_cover_min",
+        "total_cloud_cover_mean",
+        "low_cloud_cover_mean",
+        "mid_cloud_cover_mean",
+        "high_cloud_cover_mean",
       ],
     };
 
@@ -1735,26 +1837,10 @@ export = function (app: SignalKApp): SignalKPlugin {
           `Weather API: getObservations for ${position.latitude}, ${position.longitude}`,
         );
 
-        try {
-          // For now, return a simple observation based on current data
-          // TODO: Implement proper lookup from stored forecast data
-          const mockData = {
-            timestamp: new Date().toISOString(),
-            temperature: 293.15, // 20°C in Kelvin
-            sealevelpressure: 101325, // Standard pressure in Pascal
-            relativehumidity: 0.65, // 65% as ratio
-            windspeed: 5.0, // 5 m/s
-            winddirection: 1.57, // 90° in radians (East)
-          };
-
-          const weatherData = convertToWeatherAPIObservation(mockData);
-          return [weatherData];
-        } catch (error) {
-          app.error(
-            `Weather API getObservations error: ${error instanceof Error ? error.message : String(error)}`,
-          );
-          return [];
-        }
+        // Meteoblue does not provide current observations, only forecasts
+        // Return empty array as per Weather API specification
+        app.debug("Meteoblue provider does not support current observations - only forecasts");
+        return [];
       },
 
       getForecasts: async (
