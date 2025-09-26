@@ -2,17 +2,13 @@
 
 A SignalK plugin that provides intelligent weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on your vessel's position and, when moving, predicts weather conditions along your route by calculating future positions from your current heading and speed. All data is published to SignalK in standard units.
 
-metgeo offers a rich collection of weather and seatate APIs that are particulary usefuleful to sailors. I have tried to incorporate general weather data as well as seastate and solarconditions.
+Meteoblue offers a rich collection of weather and seastate APIs that are particularly useful to sailors. I have tried to incorporate general weather data as well as seastate and solar conditions.
 
-The data is pushed into SignalK paths and includes many more than those contemplated in the SigbalK WEATHER API.
+The data is pushed into SignalK paths and includes many more than those contemplated in the SignalK WEATHER API.
 
-NB: THIS IS PARTIALLY COMPLIANT WITH THE SIGNALK WEATHER API. CURRENTLY, IT IGNORES THE REQUIRED Lat and long, instead it uses the vessel's position or expected position. Also, it does NOT make calls to the underlying API when a WEATHER API request is made, instead it returns thae forecast data that already exists in the system. The updating of that data is entirely managed by the plugin.
+NB: THIS IS PARTIALLY COMPLIANT WITH THE SIGNALK WEATHER API. CURRENTLY, IT IGNORES THE REQUIRED Lat and long, instead it uses the vessel's position or expected position. Also, it does NOT make calls to the underlying API when a WEATHER API request is made, instead it returns the forecast data that already exists in the system. The updating of that data is entirely managed by the plugin.
 
-
-I plan to add forcasts points but I need a small change to the API in order to do that and keep the current fucntionality, which I have requested.
-
-NEXT UP:
-Getting forsecast data along a route rather than using a crude guess of locaton based on SOG and heading.
+I plan to add forecast points but I need a small change to the API in order to do that and keep the current functionality, which I have requested.
 
 
 ## Features
@@ -32,7 +28,7 @@ Getting forsecast data along a route rather than using a crude guess of locaton 
 
 ## Requirements
 
-- SignalK Server v2.13.0 or later
+- SignalK Server v2.16.0 or later
 - Meteoblue API key (free tier available)
 - Vessel position data (navigation.position)
 - Optional for movement prediction: navigation.headingTrue and navigation.speedOverGround
@@ -86,19 +82,32 @@ The plugin publishes weather data to the following SignalK paths:
 
 ### Hourly Forecasts
 - `environment.outside.meteoblue.forecast.hourly.{parameter}.{N}`: Individual parameters for each hour (N = 0 to maxHours-1)
+- `environment.outside.meteoblue.forecast.hourly.forecastPosition.{N}`: Position where each hourly forecast was calculated
 
 ### Daily Forecasts
 - `environment.outside.meteoblue.forecast.daily.{parameter}.{N}`: Individual parameters for each day (N = 0 to maxDays-1)
+- `environment.outside.meteoblue.forecast.daily.forecastPosition.{N}`: Position where each daily forecast was calculated
 
 ### Available Parameters by Package
 
 **Note**: Each package provides different parameters. The specific fields available depend on which Meteoblue packages are enabled.
 
 #### Common Parameters (all forecasts include):
-- `timestamp`: ISO 8601 timestamp  
+- `timestamp`: ISO 8601 timestamp
 - `relativeHour`: Hours relative to current time (hourly only)
 - `date`: Date string (daily only)
 - `dayOfWeek`: Day of the week name (daily only)
+
+#### Position Information:
+- `forecastPosition.{N}`: Position where forecast was calculated, containing:
+  ```json
+  {
+    "latitude": 41.32965333333333,
+    "longitude": -72.08823
+  }
+  ```
+  - For stationary vessels: All forecasts use current vessel position
+  - For moving vessels: Each forecast uses predicted position for that time period
 
 #### Basic Package Parameters:
 - `temperature`, `felttemperature`: Temperature data (Kelvin)
@@ -378,7 +387,7 @@ The source label indicates which Meteoblue package the data originated from, all
 
 ## Weather API Provider
 
-This plugin also implements the SignalK Weather API v2 specification, making it compatible with any application that uses the standard Weather API.
+This plugin also implements most of the SignalK Weather API v2 specifications.
 
 ### Available Endpoints
 
@@ -389,22 +398,23 @@ When the plugin is running, the following Weather API endpoints become available
 - `GET /signalk/v2/api/weather/forecasts/point?lat=37.7749&lon=-122.4194&count=24`
 - `GET /signalk/v2/api/weather/warnings?lat=37.7749&lon=-122.4194`
 
+**Important**: The `lat` and `lon` parameters are **ignored** by this implementation. Instead of fetching weather data for the requested coordinates, the API returns the vessel-centric forecast data that the plugin has already cached in the SignalK data tree. This data is based on the vessel's current position or predicted positions along its route.
+
 ### Provider Information
 
 - **Provider Name**: "Meteoblue Marine Weather"
 - **Provider ID**: Determined by SignalK server based on plugin ID
-- **Unique Features**: Only Weather API provider with vessel movement prediction and marine-specific data
 
 ### Data Sources
 
-The Weather API responses are generated from the same high-quality Meteoblue data that the plugin stores in SignalK paths, ensuring consistency between direct data access and API responses.
+The Weather API responses are generated from the Meteoblue data that the plugin stores in SignalK paths, ensuring consistency between direct data access and API responses.
 
 ### Benefits of Dual Compatibility
 
 1. **Existing Functionality**: All current features continue to work unchanged
-2. **Ecosystem Integration**: Now compatible with Freeboard-SK and other Weather API consumers
-3. **Best Performance**: Weather API responses use cached data for immediate availability
-4. **Marine Advantages**: Unique vessel movement prediction capabilities available via API
+2. **Best Performance**: Weather API responses use cached vessel forecast data for immediate availability
+3. **Marine Advantages**: Unique vessel movement prediction capabilities available via API
+4. **No Additional API Costs**: Weather API requests don't trigger new Meteoblue API calls - they use existing cached data
 
 ## Troubleshooting
 
@@ -413,7 +423,7 @@ The Weather API responses are generated from the same high-quality Meteoblue dat
 2. **Forecasts not updating**: Verify the position subscription is working and the update interval isn't too long  
 3. **API errors**: Check your API key validity and usage limits
 4. **"Could not validate API key" warning**: Check your Meteoblue API key and internet connectivity
-5. **Usage notifications**: Monitor your API usage in `environment.outside.meteoblue.system.account` - notifications will appear at 80% and 90% usage
+5. **Usage notifications**: Monitor your API usage in `environment.outside.meteoblue.system.account` - notifications will appear at 80% and 90% usage (this can sometimes be wonky and report wildly incorrect info)
 6. **Moving forecasts not working**: Check that "Auto-Enable Moving Forecasts" is enabled in config, or manually enable via `commands.meteoblue.engaged`
 7. **Stuck in stationary mode**: Verify vessel has heading and SOG data, or check if moving forecasts are manually disabled via `commands.meteoblue.engaged`
 
