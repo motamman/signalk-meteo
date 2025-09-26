@@ -2,6 +2,19 @@
 
 A SignalK plugin that provides intelligent weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on your vessel's position and, when moving, predicts weather conditions along your route by calculating future positions from your current heading and speed. All data is published to SignalK in standard units.
 
+metgeo offers a rich collection of weather and seatate APIs that are particulary usefuleful to sailors. I have tried to incorporate general weather data as well as seastate and solarconditions.
+
+The data is pushed into SignalK paths and includes many more than those contemplated in the SigbalK WEATHER API.
+
+NB: THIS IS PARTIALLY COMPLIANT WITH THE SIGNALK WEATHER API. CURRENTLY, IT IGNORES THE REQUIRED Lat and long, instead it uses the vessel's position or expected position. Also, it does NOT make calls to the underlying API when a WEATHER API request is made, instead it returns thae forecast data that already exists in the system. The updating of that data is entirely managed by the plugin.
+
+
+I plan to add forcasts points but I need a small change to the API in order to do that and keep the current fucntionality, which I have requested.
+
+NEXT UP:
+Getting forsecast data along a route rather than using a crude guess of locaton based on SOG and heading.
+
+
 ## Features
 
 - **Position-based forecasts**: Automatically updates forecasts when the vessel moves significantly
