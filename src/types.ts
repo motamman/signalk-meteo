@@ -10,6 +10,7 @@ export interface SignalKApp {
   setProviderStatus: (msg: string) => void;
   setPluginStatus: (msg: string) => void;
   getDataDirPath: () => string;
+  getSelfPath: (path: string) => any;
   subscriptionmanager: {
     subscribe: (
       subscription: SubscriptionRequest,
@@ -29,6 +30,7 @@ export interface SignalKApp {
     ) => { state: string; statusCode?: number },
     source?: string,
   ) => void;
+  registerWeatherProvider: (provider: WeatherProvider) => void;
 }
 
 export interface SignalKPlugin {
@@ -311,3 +313,134 @@ export interface ProcessedAccountInfo {
   status: string;
   lastChecked: string;
 }
+
+// Weather API types
+export interface WeatherProvider {
+  name: string;
+  methods: WeatherProviderMethods;
+}
+
+export interface WeatherProviderMethods {
+  pluginId?: string;
+  getObservations: (
+    position: Position,
+    options?: WeatherReqParams,
+  ) => Promise<WeatherData[]>;
+  getForecasts: (
+    position: Position,
+    type: WeatherForecastType,
+    options?: WeatherReqParams,
+  ) => Promise<WeatherData[]>;
+  getWarnings: (position: Position) => Promise<WeatherWarning[]>;
+}
+
+export interface WeatherReqParams {
+  maxCount?: number;
+  startDate?: string;
+}
+
+export type WeatherForecastType = "daily" | "point";
+export type WeatherDataType = WeatherForecastType | "observation";
+
+export interface WeatherData {
+  description?: string;
+  date: string;
+  type: WeatherDataType;
+  current?: {
+    drift?: number;
+    set?: number;
+  };
+  outside?: {
+    minTemperature?: number;
+    maxTemperature?: number;
+    feelsLikeTemperature?: number;
+    precipitationVolume?: number;
+    absoluteHumidity?: number;
+    horizontalVisibility?: number;
+    uvIndex?: number;
+    cloudCover?: number;
+    temperature?: number;
+    dewPointTemperature?: number;
+    pressure?: number;
+    pressureTendency?: TendencyKind;
+    relativeHumidity?: number;
+    precipitationType?: PrecipitationKind;
+    // Solar radiation fields
+    solarRadiation?: number;
+    directNormalIrradiance?: number;
+    diffuseHorizontalIrradiance?: number;
+    globalHorizontalIrradiance?: number;
+    extraterrestrialSolarRadiation?: number;
+    // Enhanced cloud data
+    totalCloudCover?: number;
+    lowCloudCover?: number;
+    midCloudCover?: number;
+    highCloudCover?: number;
+    cloudBaseHeight?: number;
+    cloudTopHeight?: number;
+    horizontalVisibilityOverRange?: boolean;
+    precipitationProbability?: number;
+  };
+  water?: {
+    temperature?: number;
+    level?: number;
+    levelTendency?: TendencyKind;
+    surfaceCurrentSpeed?: number;
+    surfaceCurrentDirection?: number;
+    salinity?: number;
+    waveSignificantHeight?: number;
+    wavePeriod?: number;
+    waveDirection?: number;
+    swellHeight?: number;
+    swellPeriod?: number;
+    swellDirection?: number;
+    // Enhanced marine data
+    seaState?: number;
+    surfaceWaveHeight?: number;
+    windWaveHeight?: number;
+    windWavePeriod?: number;
+    windWaveDirection?: number;
+    swellPeakPeriod?: number;
+    windWavePeakPeriod?: number;
+    waveSteepness?: number;
+    ice?: boolean;
+  };
+  wind?: {
+    speedTrue?: number;
+    directionTrue?: number;
+    gust?: number;
+    gustDirection?: number;
+    averageSpeed?: number;
+    gustDirectionTrue?: number;
+  };
+  sun?: {
+    sunrise?: string;
+    sunset?: string;
+    sunshineDuration?: number;
+    isDaylight?: boolean;
+  };
+}
+
+export interface WeatherWarning {
+  startTime: string;
+  endTime: string;
+  details: string;
+  source: string;
+  type: string;
+}
+
+export type TendencyKind =
+  | "steady"
+  | "decreasing"
+  | "increasing"
+  | "not available";
+
+export type PrecipitationKind =
+  | "reserved"
+  | "rain"
+  | "thunderstorm"
+  | "freezing rain"
+  | "mixed/ice"
+  | "snow"
+  | "reserved"
+  | "not available";

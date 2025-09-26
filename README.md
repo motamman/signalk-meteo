@@ -2,6 +2,19 @@
 
 A SignalK plugin that provides intelligent weather forecast data using the Meteoblue API. This plugin automatically fetches weather forecasts based on your vessel's position and, when moving, predicts weather conditions along your route by calculating future positions from your current heading and speed. All data is published to SignalK in standard units.
 
+metgeo offers a rich collection of weather and seatate APIs that are particulary usefuleful to sailors. I have tried to incorporate general weather data as well as seastate and solarconditions.
+
+The data is pushed into SignalK paths and includes many more than those contemplated in the SigbalK WEATHER API.
+
+NB: THIS IS PARTIALLY COMPLIANT WITH THE SIGNALK WEATHER API. CURRENTLY, IT IGNORES THE REQUIRED Lat and long, instead it uses the vessel's position or expected position. Also, it does NOT make calls to the underlying API when a WEATHER API request is made, instead it returns thae forecast data that already exists in the system. The updating of that data is entirely managed by the plugin.
+
+
+I plan to add forcasts points but I need a small change to the API in order to do that and keep the current fucntionality, which I have requested.
+
+NEXT UP:
+Getting forsecast data along a route rather than using a crude guess of locaton based on SOG and heading.
+
+
 ## Features
 
 - **Position-based forecasts**: Automatically updates forecasts when the vessel moves significantly
@@ -14,6 +27,8 @@ A SignalK plugin that provides intelligent weather forecast data using the Meteo
 - **Account monitoring**: API key validation and usage tracking with automatic notifications
 - **Usage alerts**: SignalK notifications when approaching API limits (80% warning, 90% critical)
 - **Flexible configuration**: Configurable update intervals and forecast ranges
+- **Weather API provider**: Implements SignalK Weather API v2 for ecosystem compatibility
+- **Dual compatibility**: Works with both direct SignalK data access and standardized Weather API requests
 
 ## Requirements
 
@@ -360,6 +375,36 @@ All packages publish to the same SignalK paths but with different source identif
 - Daily: `environment.outside.meteoblue.forecast.daily.{parameter}.{index}`
 
 The source label indicates which Meteoblue package the data originated from, allowing consumers to choose data from specific packages or combine data from multiple sources as needed.
+
+## Weather API Provider
+
+This plugin also implements the SignalK Weather API v2 specification, making it compatible with any application that uses the standard Weather API.
+
+### Available Endpoints
+
+When the plugin is running, the following Weather API endpoints become available:
+
+- `GET /signalk/v2/api/weather/observations?lat=37.7749&lon=-122.4194`
+- `GET /signalk/v2/api/weather/forecasts/daily?lat=37.7749&lon=-122.4194&count=7`
+- `GET /signalk/v2/api/weather/forecasts/point?lat=37.7749&lon=-122.4194&count=24`
+- `GET /signalk/v2/api/weather/warnings?lat=37.7749&lon=-122.4194`
+
+### Provider Information
+
+- **Provider Name**: "Meteoblue Marine Weather"
+- **Provider ID**: Determined by SignalK server based on plugin ID
+- **Unique Features**: Only Weather API provider with vessel movement prediction and marine-specific data
+
+### Data Sources
+
+The Weather API responses are generated from the same high-quality Meteoblue data that the plugin stores in SignalK paths, ensuring consistency between direct data access and API responses.
+
+### Benefits of Dual Compatibility
+
+1. **Existing Functionality**: All current features continue to work unchanged
+2. **Ecosystem Integration**: Now compatible with Freeboard-SK and other Weather API consumers
+3. **Best Performance**: Weather API responses use cached data for immediate availability
+4. **Marine Advantages**: Unique vessel movement prediction capabilities available via API
 
 ## Troubleshooting
 
