@@ -283,26 +283,31 @@ export = function (app: SignalKApp): SignalKPlugin {
     try {
       // Check if we have any data by testing for any field at index 0
       let hasData = false;
-      const testFields = ['temperature_max', 'windspeed_max', 'uvindex'];
+      const testFields = ["temperature_max", "windspeed_max", "uvindex"];
       for (const testField of testFields) {
-        const data = app.getSelfPath(`environment.outside.meteoblue.forecast.daily.${testField}.0`);
+        const data = app.getSelfPath(
+          `environment.outside.meteoblue.forecast.daily.${testField}.0`,
+        );
         if (data && data.value !== undefined) {
           hasData = true;
           break;
         }
       }
       if (!hasData) {
-        app.debug('No daily forecast data found in SignalK tree');
+        app.debug("No daily forecast data found in SignalK tree");
         return forecasts;
       }
 
       // Find how many forecasts we have by checking consecutive indices
       let forecastCount = 0;
-      for (let i = 0; i < maxCount + 10; i++) { // Check a bit beyond maxCount
+      for (let i = 0; i < maxCount + 10; i++) {
+        // Check a bit beyond maxCount
         // Check if any data exists for this index
         let hasDataForIndex = false;
         for (const testField of testFields) {
-          const data = app.getSelfPath(`environment.outside.meteoblue.forecast.daily.${testField}.${i}`);
+          const data = app.getSelfPath(
+            `environment.outside.meteoblue.forecast.daily.${testField}.${i}`,
+          );
           if (data && data.value !== undefined) {
             hasDataForIndex = true;
             break;
@@ -324,17 +329,24 @@ export = function (app: SignalKApp): SignalKPlugin {
         // Get ALL published daily forecast fields from all enabled packages
         let allFields: string[] = [];
         if (state.currentConfig) {
-          if (state.currentConfig.enableBasicDay) allFields.push(...getDailyPackageFields('basic'));
-          if (state.currentConfig.enableWindDay) allFields.push(...getDailyPackageFields('wind'));
-          if (state.currentConfig.enableSeaDay) allFields.push(...getDailyPackageFields('sea'));
-          if (state.currentConfig.enableSolarDay) allFields.push(...getDailyPackageFields('solar'));
-          if (state.currentConfig.enableCloudsDay) allFields.push(...getDailyPackageFields('clouds'));
+          if (state.currentConfig.enableBasicDay)
+            allFields.push(...getDailyPackageFields("basic"));
+          if (state.currentConfig.enableWindDay)
+            allFields.push(...getDailyPackageFields("wind"));
+          if (state.currentConfig.enableSeaDay)
+            allFields.push(...getDailyPackageFields("sea"));
+          if (state.currentConfig.enableSolarDay)
+            allFields.push(...getDailyPackageFields("solar"));
+          if (state.currentConfig.enableCloudsDay)
+            allFields.push(...getDailyPackageFields("clouds"));
         }
         // Remove duplicates
         const fields = [...new Set(allFields)];
 
-        fields.forEach(field => {
-          const data = app.getSelfPath(`environment.outside.meteoblue.forecast.daily.${field}.${i}`);
+        fields.forEach((field) => {
+          const data = app.getSelfPath(
+            `environment.outside.meteoblue.forecast.daily.${field}.${i}`,
+          );
           if (data && data.value !== undefined) {
             forecastData[field] = data.value;
           }
@@ -346,15 +358,19 @@ export = function (app: SignalKApp): SignalKPlugin {
           if (!forecastData.timestamp) {
             const date = new Date();
             date.setDate(date.getDate() + i);
-            forecastData.timestamp = date.toISOString().split('T')[0];
+            forecastData.timestamp = date.toISOString().split("T")[0];
           }
-          const weatherData = convertToWeatherAPIForecast(forecastData, 'daily');
+          const weatherData = convertToWeatherAPIForecast(
+            forecastData,
+            "daily",
+          );
           forecasts.push(weatherData);
         }
       }
-
     } catch (error) {
-      app.error(`Error reading daily forecasts from SignalK: ${error instanceof Error ? error.message : String(error)}`);
+      app.error(
+        `Error reading daily forecasts from SignalK: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return forecasts;
@@ -366,26 +382,36 @@ export = function (app: SignalKApp): SignalKPlugin {
     try {
       // Check if we have any data by testing for any field at index 0
       let hasData = false;
-      const testFields = ['temperature', 'windspeed', 'seasurfacetemperature', 'uvindex'];
+      const testFields = [
+        "temperature",
+        "windspeed",
+        "seasurfacetemperature",
+        "uvindex",
+      ];
       for (const testField of testFields) {
-        const data = app.getSelfPath(`environment.outside.meteoblue.forecast.hourly.${testField}.0`);
+        const data = app.getSelfPath(
+          `environment.outside.meteoblue.forecast.hourly.${testField}.0`,
+        );
         if (data && data.value !== undefined) {
           hasData = true;
           break;
         }
       }
       if (!hasData) {
-        app.debug('No hourly forecast data found in SignalK tree');
+        app.debug("No hourly forecast data found in SignalK tree");
         return forecasts;
       }
 
       // Find how many forecasts we have by checking consecutive indices
       let forecastCount = 0;
-      for (let i = 0; i < maxCount + 10; i++) { // Check a bit beyond maxCount
+      for (let i = 0; i < maxCount + 10; i++) {
+        // Check a bit beyond maxCount
         // Check if any data exists for this index
         let hasDataForIndex = false;
         for (const testField of testFields) {
-          const data = app.getSelfPath(`environment.outside.meteoblue.forecast.hourly.${testField}.${i}`);
+          const data = app.getSelfPath(
+            `environment.outside.meteoblue.forecast.hourly.${testField}.${i}`,
+          );
           if (data && data.value !== undefined) {
             hasDataForIndex = true;
             break;
@@ -407,18 +433,26 @@ export = function (app: SignalKApp): SignalKPlugin {
         // Get ALL published hourly forecast fields from all enabled packages
         let allFields: string[] = [];
         if (state.currentConfig) {
-          if (state.currentConfig.enableBasic1h) allFields.push(...getHourlyPackageFields('basic'));
-          if (state.currentConfig.enableWind1h) allFields.push(...getHourlyPackageFields('wind'));
-          if (state.currentConfig.enableSea1h) allFields.push(...getHourlyPackageFields('sea'));
-          if (state.currentConfig.enableSolar1h) allFields.push(...getHourlyPackageFields('solar'));
-          if (state.currentConfig.enableClouds1h) allFields.push(...getHourlyPackageFields('clouds'));
-          if (state.currentConfig.enableTrend1h) allFields.push(...getHourlyPackageFields('trend'));
+          if (state.currentConfig.enableBasic1h)
+            allFields.push(...getHourlyPackageFields("basic"));
+          if (state.currentConfig.enableWind1h)
+            allFields.push(...getHourlyPackageFields("wind"));
+          if (state.currentConfig.enableSea1h)
+            allFields.push(...getHourlyPackageFields("sea"));
+          if (state.currentConfig.enableSolar1h)
+            allFields.push(...getHourlyPackageFields("solar"));
+          if (state.currentConfig.enableClouds1h)
+            allFields.push(...getHourlyPackageFields("clouds"));
+          if (state.currentConfig.enableTrend1h)
+            allFields.push(...getHourlyPackageFields("trend"));
         }
         // Remove duplicates
         const fields = [...new Set(allFields)];
 
-        fields.forEach(field => {
-          const data = app.getSelfPath(`environment.outside.meteoblue.forecast.hourly.${field}.${i}`);
+        fields.forEach((field) => {
+          const data = app.getSelfPath(
+            `environment.outside.meteoblue.forecast.hourly.${field}.${i}`,
+          );
           if (data && data.value !== undefined) {
             forecastData[field] = data.value;
           }
@@ -432,13 +466,17 @@ export = function (app: SignalKApp): SignalKPlugin {
             date.setHours(date.getHours() + i);
             forecastData.timestamp = date.toISOString();
           }
-          const weatherData = convertToWeatherAPIForecast(forecastData, 'point');
+          const weatherData = convertToWeatherAPIForecast(
+            forecastData,
+            "point",
+          );
           forecasts.push(weatherData);
         }
       }
-
     } catch (error) {
-      app.error(`Error reading hourly forecasts from SignalK: ${error instanceof Error ? error.message : String(error)}`);
+      app.error(
+        `Error reading hourly forecasts from SignalK: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return forecasts;
@@ -465,20 +503,25 @@ export = function (app: SignalKApp): SignalKPlugin {
           : undefined, // Convert m to mm
         feelsLikeTemperature: forecastData.felttemperature,
         horizontalVisibility: forecastData.visibility,
-        dewPointTemperature: forecastData.dewpoint || forecastData.dewpointtemperature,
-        pressureTendency: forecastData.pressure_trend || forecastData.sealevelpressure_trend
-          ? (forecastData.pressure_trend || forecastData.sealevelpressure_trend) > 0
-            ? "increasing"
-            : (forecastData.pressure_trend || forecastData.sealevelpressure_trend) < 0
-            ? "decreasing"
-            : "steady"
-          : undefined,
+        dewPointTemperature:
+          forecastData.dewpoint || forecastData.dewpointtemperature,
+        pressureTendency:
+          forecastData.pressure_trend || forecastData.sealevelpressure_trend
+            ? (forecastData.pressure_trend ||
+                forecastData.sealevelpressure_trend) > 0
+              ? "increasing"
+              : (forecastData.pressure_trend ||
+                    forecastData.sealevelpressure_trend) < 0
+                ? "decreasing"
+                : "steady"
+            : undefined,
         // Solar radiation fields
         solarRadiation: forecastData.solarradiation,
         directNormalIrradiance: forecastData.irradiance_direct_normal,
         diffuseHorizontalIrradiance: forecastData.irradiance_diffuse_horizontal,
         globalHorizontalIrradiance: forecastData.irradiance_global_horizontal,
-        extraterrestrialSolarRadiation: forecastData.extraterrestrial_solar_radiation,
+        extraterrestrialSolarRadiation:
+          forecastData.extraterrestrial_solar_radiation,
         // Enhanced cloud data
         totalCloudCover: forecastData.total_cloud_cover
           ? forecastData.total_cloud_cover * 100
@@ -513,11 +556,15 @@ export = function (app: SignalKApp): SignalKPlugin {
         swellDirection: forecastData.swell_meandirection,
         surfaceCurrentSpeed: Math.sqrt(
           (forecastData.currentvelocity_u || 0) ** 2 +
-          (forecastData.currentvelocity_v || 0) ** 2
+            (forecastData.currentvelocity_v || 0) ** 2,
         ), // Calculate magnitude from u,v components
-        surfaceCurrentDirection: forecastData.currentvelocity_u && forecastData.currentvelocity_v
-          ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
-          : undefined, // Calculate direction from u,v components
+        surfaceCurrentDirection:
+          forecastData.currentvelocity_u && forecastData.currentvelocity_v
+            ? Math.atan2(
+                forecastData.currentvelocity_v,
+                forecastData.currentvelocity_u,
+              )
+            : undefined, // Calculate direction from u,v components
         salinity: forecastData.salinity,
         // Enhanced marine data
         seaState: forecastData.douglas_seastate,
@@ -536,11 +583,15 @@ export = function (app: SignalKApp): SignalKPlugin {
       current: {
         drift: Math.sqrt(
           (forecastData.currentvelocity_u || 0) ** 2 +
-          (forecastData.currentvelocity_v || 0) ** 2
+            (forecastData.currentvelocity_v || 0) ** 2,
         ), // Surface current speed
-        set: forecastData.currentvelocity_u && forecastData.currentvelocity_v
-          ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
-          : undefined, // Surface current direction
+        set:
+          forecastData.currentvelocity_u && forecastData.currentvelocity_v
+            ? Math.atan2(
+                forecastData.currentvelocity_v,
+                forecastData.currentvelocity_u,
+              )
+            : undefined, // Surface current direction
       },
     };
   };
@@ -561,21 +612,37 @@ export = function (app: SignalKApp): SignalKPlugin {
           minTemperature: forecastData.temperature_min,
           feelsLikeTemperature: forecastData.felttemperature_mean,
           pressure: forecastData.sealevelpressure_mean,
-          relativeHumidity: forecastData.relativehumidity_mean ? forecastData.relativehumidity_mean * 100 : undefined,
+          relativeHumidity: forecastData.relativehumidity_mean
+            ? forecastData.relativehumidity_mean * 100
+            : undefined,
           uvIndex: forecastData.uvindex,
-          precipitationVolume: forecastData.precipitation ? forecastData.precipitation * 1000 : undefined,
+          precipitationVolume: forecastData.precipitation
+            ? forecastData.precipitation * 1000
+            : undefined,
           dewPointTemperature: forecastData.dewpoint_mean,
           horizontalVisibility: forecastData.visibility_mean,
           precipitationProbability: forecastData.precipitation_probability,
-          cloudCover: forecastData.cloudcover_mean ? forecastData.cloudcover_mean * 100 : undefined,
-          totalCloudCover: forecastData.total_cloud_cover_mean ? forecastData.total_cloud_cover_mean * 100 : undefined,
-          lowCloudCover: forecastData.low_cloud_cover_mean ? forecastData.low_cloud_cover_mean * 100 : undefined,
-          midCloudCover: forecastData.mid_cloud_cover_mean ? forecastData.mid_cloud_cover_mean * 100 : undefined,
-          highCloudCover: forecastData.high_cloud_cover_mean ? forecastData.high_cloud_cover_mean * 100 : undefined,
+          cloudCover: forecastData.cloudcover_mean
+            ? forecastData.cloudcover_mean * 100
+            : undefined,
+          totalCloudCover: forecastData.total_cloud_cover_mean
+            ? forecastData.total_cloud_cover_mean * 100
+            : undefined,
+          lowCloudCover: forecastData.low_cloud_cover_mean
+            ? forecastData.low_cloud_cover_mean * 100
+            : undefined,
+          midCloudCover: forecastData.mid_cloud_cover_mean
+            ? forecastData.mid_cloud_cover_mean * 100
+            : undefined,
+          highCloudCover: forecastData.high_cloud_cover_mean
+            ? forecastData.high_cloud_cover_mean * 100
+            : undefined,
           solarRadiation: forecastData.solarradiation_mean,
           directNormalIrradiance: forecastData.irradiance_direct_normal_max,
-          diffuseHorizontalIrradiance: forecastData.irradiance_diffuse_horizontal_max,
-          globalHorizontalIrradiance: forecastData.irradiance_global_horizontal_max,
+          diffuseHorizontalIrradiance:
+            forecastData.irradiance_diffuse_horizontal_max,
+          globalHorizontalIrradiance:
+            forecastData.irradiance_global_horizontal_max,
         },
         wind: {
           speedTrue: forecastData.windspeed_max,
@@ -586,11 +653,15 @@ export = function (app: SignalKApp): SignalKPlugin {
           temperature: forecastData.seasurfacetemperature_mean,
           surfaceCurrentSpeed: Math.sqrt(
             (forecastData.currentvelocity_u || 0) ** 2 +
-            (forecastData.currentvelocity_v || 0) ** 2
+              (forecastData.currentvelocity_v || 0) ** 2,
           ),
-          surfaceCurrentDirection: forecastData.currentvelocity_u && forecastData.currentvelocity_v
-            ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
-            : undefined,
+          surfaceCurrentDirection:
+            forecastData.currentvelocity_u && forecastData.currentvelocity_v
+              ? Math.atan2(
+                  forecastData.currentvelocity_v,
+                  forecastData.currentvelocity_u,
+                )
+              : undefined,
         },
         sun: {
           sunshineDuration: forecastData.sunshine_duration,
@@ -598,11 +669,15 @@ export = function (app: SignalKApp): SignalKPlugin {
         current: {
           drift: Math.sqrt(
             (forecastData.currentvelocity_u || 0) ** 2 +
-            (forecastData.currentvelocity_v || 0) ** 2
+              (forecastData.currentvelocity_v || 0) ** 2,
           ),
-          set: forecastData.currentvelocity_u && forecastData.currentvelocity_v
-            ? Math.atan2(forecastData.currentvelocity_v, forecastData.currentvelocity_u)
-            : undefined,
+          set:
+            forecastData.currentvelocity_u && forecastData.currentvelocity_v
+              ? Math.atan2(
+                  forecastData.currentvelocity_v,
+                  forecastData.currentvelocity_u,
+                )
+              : undefined,
         },
       };
     } else {
@@ -860,7 +935,10 @@ export = function (app: SignalKApp): SignalKPlugin {
     if (parameterName.includes("temperature")) {
       units = "K";
       description = "Temperature forecast";
-    } else if (parameterName.includes("windspeed") || parameterName.includes("wind_speed")) {
+    } else if (
+      parameterName.includes("windspeed") ||
+      parameterName.includes("wind_speed")
+    ) {
       units = "m/s";
       description = "Wind speed forecast";
     } else if (parameterName.includes("pressure")) {
@@ -869,7 +947,10 @@ export = function (app: SignalKApp): SignalKPlugin {
     } else if (parameterName.includes("humidity")) {
       units = "ratio";
       description = "Humidity forecast (0-1)";
-    } else if (parameterName.includes("precipitation") && !parameterName.includes("probability")) {
+    } else if (
+      parameterName.includes("precipitation") &&
+      !parameterName.includes("probability")
+    ) {
       units = "m";
       description = "Precipitation forecast";
     } else if (parameterName.includes("probability")) {
@@ -1569,14 +1650,17 @@ export = function (app: SignalKApp): SignalKPlugin {
       });
 
       // Add position information for this forecast (like navigation.position)
-      const forecastLat = (forecast as any).predictedLatitude || state.currentPosition?.latitude;
-      const forecastLon = (forecast as any).predictedLongitude || state.currentPosition?.longitude;
+      const forecastLat =
+        (forecast as any).predictedLatitude || state.currentPosition?.latitude;
+      const forecastLon =
+        (forecast as any).predictedLongitude ||
+        state.currentPosition?.longitude;
 
       if (forecastLat !== undefined && forecastLon !== undefined) {
         const positionPath = `environment.outside.meteoblue.forecast.hourly.forecastPosition.${index}`;
         const positionValue = {
           latitude: forecastLat,
-          longitude: forecastLon
+          longitude: forecastLon,
         };
         const positionMetadata = {
           description: "Position where this forecast was calculated",
@@ -1584,14 +1668,14 @@ export = function (app: SignalKApp): SignalKPlugin {
             latitude: {
               type: "number",
               description: "Latitude",
-              units: "deg"
+              units: "deg",
             },
             longitude: {
               type: "number",
               description: "Longitude",
-              units: "deg"
-            }
-          }
+              units: "deg",
+            },
+          },
         };
         values.push({ path: positionPath, value: positionValue });
         meta.push({ path: positionPath, value: positionMetadata });
@@ -1634,14 +1718,17 @@ export = function (app: SignalKApp): SignalKPlugin {
       });
 
       // Add position information for this forecast (like navigation.position)
-      const forecastLat = (forecast as any).predictedLatitude || state.currentPosition?.latitude;
-      const forecastLon = (forecast as any).predictedLongitude || state.currentPosition?.longitude;
+      const forecastLat =
+        (forecast as any).predictedLatitude || state.currentPosition?.latitude;
+      const forecastLon =
+        (forecast as any).predictedLongitude ||
+        state.currentPosition?.longitude;
 
       if (forecastLat !== undefined && forecastLon !== undefined) {
         const positionPath = `environment.outside.meteoblue.forecast.daily.forecastPosition.${index}`;
         const positionValue = {
           latitude: forecastLat,
-          longitude: forecastLon
+          longitude: forecastLon,
         };
         const positionMetadata = {
           description: "Position where this forecast was calculated",
@@ -1649,14 +1736,14 @@ export = function (app: SignalKApp): SignalKPlugin {
             latitude: {
               type: "number",
               description: "Latitude",
-              units: "deg"
+              units: "deg",
             },
             longitude: {
               type: "number",
               description: "Longitude",
-              units: "deg"
-            }
-          }
+              units: "deg",
+            },
+          },
         };
         values.push({ path: positionPath, value: positionValue });
         meta.push({ path: positionPath, value: positionMetadata });
@@ -2130,9 +2217,7 @@ export = function (app: SignalKApp): SignalKPlugin {
             }
           } else {
             // This is normal - SOG/heading updates don't contain position data
-            app.debug(
-              `Navigation update processed (non-position data)`,
-            );
+            app.debug(`Navigation update processed (non-position data)`);
           }
         } catch (error) {
           const errorMsg =
@@ -2154,7 +2239,9 @@ export = function (app: SignalKApp): SignalKPlugin {
 
         // Meteoblue does not provide current observations, only forecasts
         // Return empty array as per Weather API specification
-        app.debug("Meteoblue provider does not support current observations - only forecasts");
+        app.debug(
+          "Meteoblue provider does not support current observations - only forecasts",
+        );
         return [];
       },
 
@@ -2182,23 +2269,27 @@ export = function (app: SignalKApp): SignalKPlugin {
 
           if (type === "daily") {
             // Check if any daily packages are enabled
-            hasEnabledPackages = config.enableBasicDay ||
-                               config.enableWindDay ||
-                               config.enableSeaDay ||
-                               config.enableSolarDay ||
-                               config.enableCloudsDay;
+            hasEnabledPackages =
+              config.enableBasicDay ||
+              config.enableWindDay ||
+              config.enableSeaDay ||
+              config.enableSolarDay ||
+              config.enableCloudsDay;
           } else if (type === "point") {
             // Check if any hourly packages are enabled
-            hasEnabledPackages = config.enableBasic1h ||
-                               config.enableWind1h ||
-                               config.enableSea1h ||
-                               config.enableSolar1h ||
-                               config.enableClouds1h ||
-                               config.enableTrend1h;
+            hasEnabledPackages =
+              config.enableBasic1h ||
+              config.enableWind1h ||
+              config.enableSea1h ||
+              config.enableSolar1h ||
+              config.enableClouds1h ||
+              config.enableTrend1h;
           }
 
           if (!hasEnabledPackages) {
-            app.debug(`No ${type} forecast packages enabled, returning empty array`);
+            app.debug(
+              `No ${type} forecast packages enabled, returning empty array`,
+            );
             return forecasts;
           }
 
